@@ -6,13 +6,25 @@
   <license>GNU AGPL</license>
   <maintainer>
     <author>Richard van Oosterhout</author>
-    <email>info@onvergetelijkezomerkampen.nl</email>
+    <email>webteam@onvergetelijk.nl</email>
   </maintainer>
-  <releaseDate>2019-12-13</releaseDate>
+  <releaseDate>2021-02-01</releaseDate>
   <version>1.1</version>
   <develStage>beta</develStage>
   <compatibility>
-    <ver>5.20</ver>
+    <ver>5.34</ver>
   </compatibility>
   <comments>This module extension is specific to the Promotie Custom Field Group</comments>
+  <civix>
+    <namespace>CRM/Leeftijd</namespace>
+    <format>23.02.1</format>
+  </civix>
+  <classloader>
+    <psr0 prefix="CRM_" path="."/>
+    <psr4 prefix="Civi\" path="Civi"/>
+  </classloader>
+  <mixins>
+    <mixin>menu-xml@1.0.0</mixin>
+    <mixin>mgd-php@1.0.0</mixin>
+  </mixins>
 </extension>

@@ -1,0 +1,1592 @@
+<?php
+
+#error_reporting(E_ALL);
+#ini_set('display_errors', TRUE);
+#ini_set('display_startup_errors', TRUE);
+
+require_once 'leeftijd.civix.php';
+
+/**
+ * Implementation of hook_civicrm_custom
+ *
+ * This is needed only if there is a computed (View Only) custom field in this set.
+ */
+
+function leeftijd_civicrm_validateprofile($profileName)
+{
+
+		$extdebug            = 1;
+		$processkampleeftijd = 1;
+
+		if ($profileName === 'BEHEER_GEBOORTEDATUM_101'  or
+			$profileName === 'Verjaardag_en_geslacht_68' or
+			$profileName === 'Verjaardag_en_geslacht_97' or
+			$profileName === 'Verjaardag_en_geslacht_66' or
+			$profileName === 'Verjaardag_en_geslacht_67' or
+			$profileName === 'Verjaardag_en_geslacht_99' or
+			$profileName === 'Verjaardag_en_geslacht_19'
+		) {
+				wachthond($extdebug,3, "########################################################################");
+				wachthond($extdebug,1, "### START KAMPLEEFTIJD (VAL)", "$displayname");
+				wachthond($extdebug,3, "########################################################################");
+
+				wachthond($extdebug,1, 'job', 								$job);
+				wachthond($extdebug,1, 'validateprofile: profile_name:', 	$profileName);
+				wachthond($extdebug,1, 'processkampleeftijd', 				$processkampleeftijd);
+
+				$processkampleeftijd = 1;
+
+				wachthond($extdebug,1, 'id', 								$id);
+				wachthond($extdebug,1, 'gid', 								$gid);
+				wachthond($extdebug,1, 'group_id', 							$group_id);
+				wachthond($extdebug,1, 'entity_id', 						$entity_id);
+
+				wachthond($extdebug,3, "########################################################################");
+				wachthond($extdebug,1, "### EINDE KAMPLEEFTIJD (VAL)", "$displayname");
+				wachthond($extdebug,3, "########################################################################");
+
+		}
+}
+
+function leeftijd_civicrm_diff($job, $birthdate, $vergelijk)
+{
+	####################################################################################################################
+	# BEREKEN DE LEEFTIJD TOV BEPAALDE DATUM
+	####################################################################################################################
+
+	$extdebug = 0;
+
+	wachthond($extdebug,1, 'job', 			$job);
+	wachthond($extdebug,1, 'birthdate', 	$birthdate); 
+	wachthond($extdebug,1, 'vergelijk', 	$vergelijk); 
+
+	$diffbirthdate	= date_diff(date_create($birthdate), date_create($vergelijk));
+	$diffyears		= $diffbirthdate->format('%y');
+	$diffmonths		= $diffbirthdate->format('%m');
+	$diffmonths_dec	= ROUND(($diffmonths / 12 * 10),0);
+
+	$leeftijd_decimalen = $diffyears . "." . $diffmonths_dec;
+	$leeftijd_rondjaren = $diffyears;
+	$leeftijd_rondmaand = ROUND((($leeftijd_decimalen - $leeftijd_rondjaren) * 12),0);
+
+	wachthond($extdebug,4, 'diffbirthdate', 		$diffbirthdate); 
+	wachthond($extdebug,4, 'diffyears', 			$diffyears);
+	wachthond($extdebug,4, 'diffmonths', 			$diffmonths); 
+	wachthond($extdebug,1, 'leeftijd_decimalen',	$leeftijd_decimalen); 
+	wachthond($extdebug,2, 'leeftijd_rondjaren', 	$leeftijd_rondjaren); 
+	wachthond($extdebug,2, 'leeftijd_rondmaand', 	$leeftijd_rondmaand); 
+
+   	$leeftijd_return = array(
+    	'leeftijd_birthdate'	=> $birthdate,
+    	'leeftijd_vergelijk'	=> $vergelijk,
+    	'leeftijd_decimalen'	=> $leeftijd_decimalen,
+    	'leeftijd_rondjaren' 	=> $leeftijd_rondjaren,
+    	'leeftijd_rondmaand' 	=> $leeftijd_rondmaand,
+	);
+	return $leeftijd_return;
+
+}
+
+function leeftijd_civicrm_custom($op, $groupID, $entityID)
+{
+	$extdebug = 0;
+
+	if ($op != 'create' && $op != 'edit') { //    did we just create or edit a custom object?
+
+		wachthond($extdebug,1, "EXIT: op != create OR op != edit");
+		return; 							//    if not, get out of here
+	}
+
+	if (in_array($groupID, array("13900000000000000000000"))) { // CV & PART
+
+		// 101  EVENT KENMERKEN
+		// 139	PART DEEL
+		// 190	PART LEID
+		// 140	PART LEID VOG
+		// 106	TAB  WERVING
+		// 103	TAB  CURRICULUM
+		// 149  TAB  TALENT
+		// 150	TAB  PROMOTIE
+		// 165	PART REFERENTIE
+		// 213  PART REF
+		// 205  PART 
+		// 225  JAAROVERZICHT
+
+		$job = 'event';
+
+		#$result = leeftijd_configure($op, $groupID, $entityID, NULL);
+
+		wachthond($extdebug,1, "--- START KAMPLEEFTIJD STANDALONE ---");
+		wachthond($extdebug,1, "op", 						$op);
+		wachthond($extdebug,1, "groupID",					$groupID);
+		wachthond($extdebug,1, "entityID",					$entityID);
+		wachthond($extdebug,1, "processkampleeftijd",		$processkampleeftijd);
+		wachthond($extdebug,1, "--- EINDE KAMPLEEFTIJD STANDALONE ---");
+
+	#} elseif ($processkampleeftijd = 1) {
+
+	#	$result = leeftijd_configure($op, $groupID, $entityID, NULL);
+	#	($extdebug,1, "groupID",					$groupID);
+
+	} else {
+
+//		wachthond($extdebug,1, "civicrm_custom",			$groupID);
+//		wachthond($extdebug,1, "set_processkampleeftijd",	$processkampleeftijd);
+
+		return; // if not, get out of here
+	}
+}
+
+// M61: TODO CHECKEN OF LEEFTIJD_CONFIGURE NOG WEL ERGENS GEBRUIKT WORDT
+// VERANDER DIT WELLICHT IN EEN WRITE TO DB FUNCTIE
+
+function leeftijd_configure($job, $groupID, $entityID, $basedate, $array_partevent = NULL)
+{
+	$extdebug = 0;
+	#if ($basedate) { $extdebug = 0; } else { $extdebug = 1; }
+
+	wachthond($extdebug,1, "*** 1. STARTKAMPLEEFTIJD PROCESS", 		"[groupID: $groupID] [op: $op] [entityID: $entityID]");
+
+	wachthond($extdebug,1, "job", 		$job);
+	wachthond($extdebug,1, "groupID", 	$groupID);
+	wachthond($extdebug,1, "entityID", 	$entityID);
+	wachthond($extdebug,1, "basedate", 	$basedate);
+
+	$cache_fiscalyear_start = Civi::cache()->get('cache_fiscalyear_start');
+	$cache_fiscalyear_end 	= Civi::cache()->get('cache_fiscalyear_end');
+	wachthond($extdebug,1, "cache_fiscalyear_start",	$cache_fiscalyear_start);
+	wachthond($extdebug,1, "cache_fiscalyear_end", 		$cache_fiscalyear_end);
+
+	$groepklas			    = NULL;
+	$partstatusnot 			= array(4,11,17,26);	//	PARTICIPANT STATUS BETEKENT DEELNAME = NO 
+													//	(GECANCELLED, NIET GOEDGEKEURD OF OVERGEDRAGEN)
+	$todaydatetime			= date("Y-m-d");
+
+	$displayname 							= $array_partditevent['displayname'] 							?? NULL;
+	$contact_id 							= $array_partditevent['contact_id'] 							?? NULL;
+
+    $ditevent_part_contact_id 				= $array_partditevent['contact_id']								?? NULL;
+    $ditevent_part_eventid 					= $array_partditevent['event_id']								?? NULL;
+    $ditevent_part_id   					= $array_partditevent['id'] 									?? NULL;
+    $ditevent_part_role_id     				= $array_partditevent['role_id']								?? NULL;
+    $ditevent_part_status_id 				= $array_partditevent['status_id']								?? NULL;
+    $ditevent_part_status_name  			= $array_partditevent['status_name']							?? NULL;
+
+   	$ditevent_register_date     			= $array_partditevent['register_date']							?? NULL;
+    $ditevent_event_start 					= $array_partditevent['event_start_date']						?? NULL;
+    $ditevent_event_einde 					= $array_partditevent['event_end_date']							?? NULL;
+
+    $ditevent_event_kampnaam   				= $array_partditevent['kenmerken_kampnaam']						?? NULL;
+    $ditevent_event_kampkort 				= $array_partditevent['kenmerken_kampkort']						?? NULL;
+
+    $ditevent_part_functie 					= $array_partditevent['part_kampfunctie']						?? NULL;
+    $ditevent_part_rol 						= $array_partditevent['part_kamprol']							?? NULL;
+
+	$ditevent_wachtlijst_erop				= $array_partditevent['part_wachtlijst_erop'] 					?? NULL;
+	$ditevent_wachtlijst_eraf				= $array_partditevent['part_wachtlijst_eraf'] 					?? NULL;
+	$ditevent_criteriacheck_start 			= $array_partditevent['part_criteriacheck_start'] 				?? NULL;
+	$ditevent_criteriacheck_einde 			= $array_partditevent['part_criteriacheck_einde'] 				?? NULL;
+
+	$ditevent_criteria_leeftijd 			= $array_partditevent['part_criteria_leeftijd'] 				?? NULL;
+	$ditevent_criteria_school 				= $array_partditevent['part_criteria_school'] 					?? NULL;
+	$ditevent_criteria_indicatie 			= $array_partditevent['part_criteria_indicatie'] 				?? NULL;
+	$ditevent_criteria_oordeel 				= $array_partditevent['part_criteria_oordeel'] 					?? NULL;
+
+    wachthond($extdebug,3, 'contact_id',           				$contact_id);
+    wachthond($extdebug,3, 'ditevent_contact_id',           	$ditevent_part_contact_id);
+
+    wachthond($extdebug,3, 'ditevent_event_kampnaam',       	$ditevent_event_kampnaam);
+    wachthond($extdebug,3, 'ditevent_event_kampkort',       	$ditevent_event_kampkort);
+
+    wachthond($extdebug,3, 'ditevent_register_date',      		$ditevent_register_date);
+    wachthond($extdebug,3, 'ditevent_event_start',          	$ditevent_event_start);
+    wachthond($extdebug,3, 'ditevent_event_einde',          	$ditevent_event_einde);
+    wachthond($extdebug,3, 'ditevent_kampjaar',             	$ditevent_kampjaar);    
+
+    wachthond($extdebug,3, 'ditevent_part_id',              	$ditevent_part_id);
+    wachthond($extdebug,2, 'ditevent_part_eventid',         	$ditevent_part_eventid);
+    wachthond($extdebug,3, 'ditevent_part_status_id',       	$ditevent_part_status_id);
+    wachthond($extdebug,3, 'ditevent_part_status_name',     	$ditevent_part_status_name);
+
+	wachthond($extdebug,2, 'ditevent_functie',              	$ditevent_part_functie);
+    wachthond($extdebug,2, 'ditevent_part_rol',             	$ditevent_part_rol);
+
+    wachthond($extdebug,3, 'ditevent_criteria_leeftijd', 		$ditevent_criteria_leeftijd);
+	wachthond($extdebug,3, 'ditevent_criteria_school', 			$ditevent_criteria_school);
+	wachthond($extdebug,3, 'ditevent_criteria_indicatie', 		$ditevent_criteria_indicatie);
+	wachthond($extdebug,3, 'ditevent_criteria_oordeel', 		$ditevent_criteria_oordeel);
+
+	wachthond($extdebug,3, 'ditevent_wachtlijst_erop', 			$ditevent_wachtlijst_erop);
+	wachthond($extdebug,3, 'ditevent_wachtlijst_eraf', 			$ditevent_wachtlijst_eraf);
+	wachthond($extdebug,3, 'ditevent_criteriacheck_start',		$ditevent_criteriacheck_start);
+	wachthond($extdebug,3, 'ditevent_criteriacheck_einde',		$ditevent_criteriacheck_einde);
+
+	if ($basedate) { $datumditevent = $basedate; } else { $datumditevent = NULL; }
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD - 1.1 BEPAAL LEEFTIJD VANDAAG",  			   $todaydatetime);
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($job == 'vandaag') {
+		$birthdate 		= $basedate;
+		$basedate 		= date("Y-m-d");
+		$datumditevent 	= date("Y-m-d");
+
+		wachthond($extdebug,2, "value_datumbirthday",	$birthdate);
+		wachthond($extdebug,2, "value_datumvandaag",	$basedate);			
+	}
+
+	$datumditevent 	= $ditevent_event_start;
+
+    $today_lastnext = find_lastnext($today_datetime);	
+    $datumnextkamp 	=   $today_lastnext['next_start_date'];
+    wachthond($extdebug,3, 'datumnextkamp',    		$datumnextkamp);
+
+	wachthond($extdebug,2, "value_datumnextkamp",	$datumnextkamp);
+	wachthond($extdebug,2, "value_datumditevent",	$datumditevent);
+
+	if ($birthdate) { $leeftijd_vantoday = leeftijd_civicrm_diff($birthdate, $todaydatetime);	}
+	if ($birthdate) { $leeftijd_ditevent = leeftijd_civicrm_diff($birthdate, $datumditevent);	}
+	if ($birthdate) { $leeftijd_nextkamp = leeftijd_civicrm_diff($birthdate, $datumnextkamp);	}
+
+	wachthond($extdebug,2, "leeftijd_vantoday", 				$leeftijd_vantoday);
+	wachthond($extdebug,2, "leeftijd_ditevent", 				$leeftijd_ditevent);
+	wachthond($extdebug,2, "leeftijd_nextkamp", 				$leeftijd_nextkamp);		
+
+	$leeftijd_vantoday_decimalen	= $leeftijd_vantoday['leeftijd_decimalen'];
+	$leeftijd_vantoday_rondjaren 	= $leeftijd_vantoday['leeftijd_rondjaren'];
+	$leeftijd_vantoday_rondmaand 	= $leeftijd_vantoday['leeftijd_rondmaand'];
+
+	$leeftijd_ditevent_decimalen	= $leeftijd_ditevent['leeftijd_decimalen'];
+	$leeftijd_ditevent_rondjaren 	= $leeftijd_ditevent['leeftijd_rondjaren'];
+	$leeftijd_ditevent_rondmaand 	= $leeftijd_ditevent['leeftijd_rondmaand'];
+
+	$leeftijd_nextkamp_decimalen 	= $leeftijd_nextkamp['leeftijd_decimalen'];
+	$leeftijd_nextkamp_rondjaren 	= $leeftijd_nextkamp['leeftijd_rondjaren'];
+	$leeftijd_nextkamp_rondmaand 	= $leeftijd_nextkamp['leeftijd_rondmaand'];
+
+	##################################################################################################
+
+	$params_cont_update = [
+		#'reload' 			=> TRUE,
+			'checkPermissions' => FALSE,
+			'where' => [
+			['id', '=', $contact_id],
+			],
+		'values' => [
+			'id' 	=> 	$contact_id,
+			],				
+	];
+
+	$params_part_update = [
+		#'reload' 			=> TRUE,
+			'checkPermissions' => FALSE,
+			'where' => [
+			['id', '=', $part_id],
+			],
+		'values' => [
+			'id' 	=> 	$part_id,
+			],				
+	];
+
+		wachthond($extdebug,3, "########################################################################");
+		wachthond($extdebug,1, "### LEEFTIJD - 1.4 PREPARE DB UPDATE MET LEEFTIJDEN");
+		wachthond($extdebug,3, "########################################################################");
+
+		if (in_array($groupID, array("149", "225", "139", "190"))) { // TAB & PART
+
+			$timestampditevent 	= strtotime($datumditevent);
+			$timestampnextkamp 	= strtotime($datumnextkamp);
+			$jaarditevent		= date("Y", $timestampditevent);
+			$jaarnextkamp		= date("Y", $timestampnextkamp);
+
+			wachthond($extdebug,3, "jaarditevent", 	$jaarditevent);
+			wachthond($extdebug,3, "jaarnextkamp",	$jaarnextkamp);
+
+			if ($jaarditevent == $jaarnextkamp AND $leeftijd_ditevent) {
+				$params_cont_update['values']['WERVING.nextkamp_decimalen']		= $leeftijd_ditevent_decimalen;
+				$params_cont_update['values']['WERVING.nextkamp_rondjaren']		= $leeftijd_ditevent_rondjaren;
+				$params_cont_update['values']['WERVING.nextkamp_rondmaand']		= $leeftijd_ditevent_rondmaand;
+			} else {
+				$params_cont_update['values']['WERVING.nextkamp_decimalen']		= $leeftijd_nextkamp_decimalen;
+				$params_cont_update['values']['WERVING.nextkamp_rondjaren']		= $leeftijd_nextkamp_rondjaren;
+				$params_cont_update['values']['WERVING.nextkamp_rondmaand']		= $leeftijd_nextkamp_rondmaand;
+			}
+		}
+
+		if ($job == 'event') { // PART
+
+			if (!empty($params_cont_update)) {
+				$params_cont_update['reload']			= TRUE;
+				$params_cont_update['checkPermissions']	= FALSE;
+				$params_cont_update['debug']			= FALSE;
+
+				wachthond($extdebug,3, "params_cont_update", 				$params_cont_update);
+				if ($contact_id) {
+					$result_leeftijd_cont_update = civicrm_api4('Contact', 'update', $params_cont_update);
+					wachthond($extdebug,3, "params_cont_update", 			"EXECUTED");
+					wachthond($extdebug,3, "result_leeftijd_cont_update", 			$result_leeftijd_cont_update);
+				}
+			}
+		}
+		if ($job == 'event' AND in_array($groupID, array("139", "190"))) { // PART
+
+			$params_part_update['values']['PART.nextkamp_decimalen']			= $leeftijd_ditevent;
+
+			if (!empty($params_part_update)) {
+				$params_part_update['reload']			= TRUE;
+				$params_part_update['checkPermissions']	= FALSE;
+				$params_part_update['debug']			= FALSE;
+
+				wachthond($extdebug,3, "params_part_update", 					$params_part_update);
+				if ($part_eventid AND $part_id) {
+					$result_leeftijd_part_update = civicrm_api4('Participant', 'update', $params_part_update);
+					wachthond($extdebug,3, "params_part_update", 				"EXECUTED");
+					wachthond($extdebug,3, "result_leeftijd_part_update", 				$result_leeftijd_part_update);
+
+				}
+			}
+		}
+
+	wachthond($extdebug,1, "*** 1. EINDKAMPLEEFTIJD PROCESS $displayname", 				$result_leeftijd_part_update);
+
+   	$leeftijd_return = array(
+    	'leeftijdvantoday_decimalen'	=> $leeftijd_vantoday_decimalen,
+    	'leeftijdvantoday_rondjaren' 	=> $leeftijd_ditevent_rondjaren,
+    	'leeftijdvantoday_rondmaand' 	=> $leeftijd_ditevent_rondmaand,
+    	'leeftijdditevent_decimalen'	=> $leeftijd_ditevent_decimalen,
+    	'leeftijdditevent_rondjaren' 	=> $leeftijd_ditevent_rondjaren,
+    	'leeftijdditevent_rondmaand' 	=> $leeftijd_ditevent_rondmaand,
+    	'leeftijdnextkamp_decimalen'	=> $leeftijd_nextkamp_decimalen,
+    	'leeftijdnextkamp_rondjaren' 	=> $leeftijd_nextkamp_rondjaren,
+    	'leeftijdnextkamp_rondmaand' 	=> $leeftijd_nextkamp_rondmaand,
+	);
+
+	return $leeftijd_return;
+}
+
+function leeftijd_civicrm_criteria($array_partevent, $leeftijd_ditevent_decimalen)
+{
+
+	$extdebug 			= 3;
+
+	wachthond($extdebug,4, 'array_partevent',           	$array_partevent);
+	wachthond($extdebug,4, 'leeftijd_ditevent_decimalen', 	$leeftijd_ditevent_decimalen);
+
+	if ($array_partevent) {
+		$array_partditevent = $array_partevent;
+	} else {
+		return;
+	}
+
+	$displayname 							= $array_partditevent['displayname'] 						?? NULL;
+    $ditevent_part_rol 						= $array_partditevent['part_kamprol']						?? NULL;
+
+	if ($ditevent_part_rol != 'deelnemer') {
+		wachthond($extdebug,4, 'ditevent_part_rol',         $ditevent_part_rol);
+		return;
+	}
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 1.X BEOORDEEL CRITERIA SCHOOL & LEEFTIJD",    $displayname); 
+	wachthond($extdebug,3, "########################################################################");	
+
+	$criteria_school	= NULL;
+	$criteria_leeftijd	= NULL;
+	$criteria_indicatie	= NULL;
+
+	$displayname 							= $array_partditevent['displayname'] 						?? NULL;
+	$contact_id 							= $array_partditevent['contact_id'] 						?? NULL;
+
+    $ditevent_part_contact_id 				= $array_partditevent['contact_id']							?? NULL;
+    $ditevent_part_eventid 					= $array_partditevent['event_id']							?? NULL;
+    $ditevent_part_id   					= $array_partditevent['id'] 								?? NULL;
+
+    $ditevent_event_kampnaam   				= $array_partditevent['kenmerken_kampnaam']					?? NULL;
+    $ditevent_event_kampkort 				= $array_partditevent['kenmerken_kampkort']					?? NULL;
+    $ditevent_kampjaar 						= $array_partditevent['ditevent_kampjaar']					?? NULL;
+
+    $ditevent_part_functie 					= $array_partditevent['part_kampfunctie']					?? NULL;
+    $ditevent_part_rol 						= $array_partditevent['part_kamprol']						?? NULL;
+	$ditevent_part_groepklas				= $array_partditevent['part_groepklas'] 					?? NULL;
+
+	if ($ditevent_part_rol == 'deelnemer') {
+
+		$ditevent_wachtlijst_erop			= $array_partditevent['part_wachtlijst_erop'] 				?? NULL;
+		$ditevent_wachtlijst_eraf			= $array_partditevent['part_wachtlijst_eraf'] 				?? NULL;
+		$ditevent_criteriacheck_start 		= $array_partditevent['part_criteriacheck_start'] 			?? NULL;
+		$ditevent_criteriacheck_einde 		= $array_partditevent['part_criteriacheck_einde'] 			?? NULL;
+
+		$ditevent_criteria_leeftijd 		= $array_partditevent['part_criteria_leeftijd'] 			?? NULL;
+		$ditevent_criteria_school 			= $array_partditevent['part_criteria_school'] 				?? NULL;
+		$ditevent_criteria_indicatie 		= $array_partditevent['part_criteria_indicatie'] 			?? NULL;
+		$ditevent_criteria_oordeel 			= $array_partditevent['part_criteria_oordeel'] 				?? NULL;
+	}
+
+    wachthond($extdebug,3, 'displayname',          				$displayname);
+    wachthond($extdebug,3, 'contact_id',           				$contact_id);
+    wachthond($extdebug,3, 'ditevent_contact_id',           	$ditevent_part_contact_id);
+    wachthond($extdebug,2, 'ditevent_part_eventid',         	$ditevent_part_eventid);
+    wachthond($extdebug,3, 'ditevent_part_id',              	$ditevent_part_id);
+
+    wachthond($extdebug,3, 'ditevent_event_kampnaam',       	$ditevent_event_kampnaam);
+    wachthond($extdebug,3, 'ditevent_event_kampkort',       	$ditevent_event_kampkort);
+    wachthond($extdebug,3, 'ditevent_kampjaar',             	$ditevent_kampjaar);
+
+	wachthond($extdebug,2, 'ditevent_functie',              	$ditevent_part_functie);
+    wachthond($extdebug,2, 'ditevent_part_rol',             	$ditevent_part_rol);
+	wachthond($extdebug,2, 'ditevent_part_groepklas', 			$ditevent_part_groepklas);
+
+	if ($ditevent_part_rol == 'deelnemer') {
+
+		wachthond($extdebug,3, 'ditevent_wachtlijst_erop', 		$ditevent_wachtlijst_erop);
+		wachthond($extdebug,3, 'ditevent_wachtlijst_eraf', 		$ditevent_wachtlijst_eraf);
+		wachthond($extdebug,3, 'ditevent_criteriacheck_start',	$ditevent_criteriacheck_start);
+		wachthond($extdebug,3, 'ditevent_criteriacheck_einde',	$ditevent_criteriacheck_einde);
+	}
+
+	$contact_id = $ditevent_part_contact_id;
+	$part_id 	= $ditevent_part_id;
+	$kampkort 	= $ditevent_event_kampkort;
+	$groepklas 	= $ditevent_part_groepklas;
+	$leeftijd 	= $leeftijd_ditevent_decimalen;
+
+	wachthond($extdebug,1, 'kampkort', 	$kampkort); 
+	wachthond($extdebug,1, 'groepklas', $groepklas);
+	wachthond($extdebug,1, 'leeftijd', 	$leeftijd); 
+
+	wachthond($extdebug,1, 'contact_id',$contact_id); 
+	wachthond($extdebug,1, 'leeftijd', 	$leeftijd); 
+	wachthond($extdebug,1, 'part_id', 	$part_id); 
+
+	$params_cont_update = [
+		#'reload' 		   => TRUE,
+		'checkPermissions' => FALSE,
+			'where' => [
+			['id', '=', $contact_id],
+		],
+		'values' => [
+			'id' 	=> 	$contact_id,
+		],				
+	];
+
+	$params_part_update = [
+		#'reload' 			=> TRUE,
+		'checkPermissions' 	=> FALSE,
+			'where' => [
+			['id', '=', $part_id],
+			],
+		'values' => [
+			'id' 	=> 	$part_id,
+			],				
+	];
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 1.1 CORRIGEER EVT MIXUP VAN GROEP VS KLAS");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($kampkort == 'kk1' OR $kampkort == 'kk2') {
+
+		if (in_array($groepklas, array("klas_3"))) {
+			$new_groepklas = 'groep_3';
+		}
+		if (in_array($groepklas, array("klas_4"))) {
+			$new_groepklas = 'groep_4';
+		}
+		if (in_array($groepklas, array("klas_5"))) {
+			$new_groepklas = 'groep_5';
+		}
+		if (in_array($groepklas, array("klas_6"))) {
+			$new_groepklas = 'groep_6';
+		}
+	}
+
+	if ($kampkort == 'tk1' OR $kampkort == 'tk2') {
+
+		if (in_array($groepklas, array("groep_2"))) {
+			$new_groepklas = 'klas_2';
+		}
+		if (in_array($groepklas, array("groep_3"))) {
+			$new_groepklas = 'klas_3';
+		}
+	}
+
+	if ($kampkort == 'jk1' OR $kampkort == 'jk2') {
+
+		if (in_array($groepklas, array("groep_3"))) {
+			$new_groepklas = 'klas_3';
+		}
+		if (in_array($groepklas, array("groep_4"))) {
+			$new_groepklas = 'klas_4';
+		}
+		if (in_array($groepklas, array("groep_5"))) {
+			$new_groepklas = 'klas_5';
+		}
+		if (in_array($groepklas, array("groep_6"))) {
+			$new_groepklas = 'klas_6';
+		}
+	}
+
+	if ($new_groepklas) {
+		wachthond($extdebug,1, "!!! CRITERIA - MIXUP HERSTELD VOOR $kampkort VAN $groepklas NAAR $new_groepklas");
+		$groepklas = $new_groepklas;
+	}
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 1.2 INDICATIE GROEP/KLAS: PRIMA OF AFWIJKEND",$displayname);
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($kampkort == 'kk1' AND in_array($groepklas, array("groep_3","groep_4","groep_5","groep_6","groep_7")))
+		{ $criteria_school = 'prima'; } elseif ($kampkort == 'kk1'){ $criteria_school = 'afwijkend'; }
+	if ($kampkort == 'kk2' AND in_array($groepklas, array("groep_3","groep_4","groep_5","groep_6","groep_7")))	
+		{ $criteria_school = 'prima'; } elseif ($kampkort == 'kk2'){ $criteria_school = 'afwijkend'; }
+	if ($kampkort == 'bk1' AND in_array($groepklas, array("groep_8","klas_1")))								
+		{ $criteria_school = 'prima'; } elseif ($kampkort == 'bk1'){ $criteria_school = 'afwijkend'; }
+	if ($kampkort == 'bk2' AND in_array($groepklas, array("groep_8","klas_1")))	
+		{ $criteria_school = 'prima'; } elseif ($kampkort == 'bk2'){ $criteria_school = 'afwijkend'; }
+	if ($kampkort == 'tk1' AND in_array($groepklas, array("klas_2","klas_3")))	
+		{ $criteria_school = 'prima'; } elseif ($kampkort == 'tk1'){ $criteria_school = 'afwijkend'; }
+	if ($kampkort == 'tk2' AND in_array($groepklas, array("klas_2","klas_3")))
+		{ $criteria_school = 'prima'; } elseif ($kampkort == 'tk2'){ $criteria_school = 'afwijkend'; }
+	if ($kampkort == 'jk1' AND in_array($groepklas, array("klas_4","klas_5","klas_6","vervolg")))	
+		{ $criteria_school = 'prima'; } elseif ($kampkort == 'jk1'){ $criteria_school = 'afwijkend'; }
+	if ($kampkort == 'jk2' AND in_array($groepklas, array("klas_4","klas_5","klas_6","vervolg")))	
+		{ $criteria_school = 'prima'; } elseif ($kampkort == 'jk2'){ $criteria_school = 'afwijkend'; }
+
+	wachthond($extdebug,1, "school ($groepklas) binnen basiscriteria", 		 	$criteria_school); 
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 1.3 INDICATIE GROEP/KLAS",                       "[MARGE]");
+	wachthond($extdebug,3, "########################################################################");
+
+	if (in_array($kampkort,array("tk1","tk2")) AND in_array($groepklas,array("klas_4")))						
+		{ $criteria_school = 'marge';		}
+	if (in_array($kampkort,array("jk1","jk2")) AND in_array($groepklas,array("klas_2","klas_3")))				
+		{ $criteria_school = 'marge';		}
+
+	wachthond($extdebug,1, "school ($groepklas) binnen criteriamarges", 		$criteria_school); 
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 1.4 INDICATIE LEEFTIJD",            "[PRIMA OF AFWIJKEND]");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($kampkort == 'kk1' AND ($leeftijd >=  7.0 AND $leeftijd < 12.0))	
+		{ $criteria_leeftijd = 'prima'; } elseif ($kampkort == 'kk1')	{ $criteria_leeftijd = 'afwijkend';}
+	if ($kampkort == 'kk2' AND ($leeftijd >=  7.0 AND $leeftijd < 12.0))	
+		{ $criteria_leeftijd = 'prima'; } elseif ($kampkort == 'kk2')	{ $criteria_leeftijd = 'afwijkend';}
+	if ($kampkort == 'bk1' AND ($leeftijd >= 12.0 AND $leeftijd < 14.0))	
+		{ $criteria_leeftijd = 'prima'; } elseif ($kampkort == 'bk1')	{ $criteria_leeftijd = 'afwijkend';}
+	if ($kampkort == 'bk2' AND ($leeftijd >= 12.0 AND $leeftijd < 14.0))	
+		{ $criteria_leeftijd = 'prima'; } elseif ($kampkort == 'bk2')	{ $criteria_leeftijd = 'afwijkend';}
+	if ($kampkort == 'tk1' AND ($leeftijd >= 14.0 AND $leeftijd < 16.0))	
+		{ $criteria_leeftijd = 'prima'; } elseif ($kampkort == 'tk1')	{ $criteria_leeftijd = 'afwijkend';}
+	if ($kampkort == 'tk2' AND ($leeftijd >= 14.0 AND $leeftijd < 16.0))	
+		{ $criteria_leeftijd = 'prima'; } elseif ($kampkort == 'tk2')	{ $criteria_leeftijd = 'afwijkend';}
+	if ($kampkort == 'jk1' AND ($leeftijd >= 16.0 AND $leeftijd < 18.0))	
+		{ $criteria_leeftijd = 'prima'; } elseif ($kampkort == 'jk1')	{ $criteria_leeftijd = 'afwijkend';}
+	if ($kampkort == 'jk2' AND ($leeftijd >= 16.0 AND $leeftijd < 18.0))	
+		{ $criteria_leeftijd = 'prima'; } elseif ($kampkort == 'jk2')	{ $criteria_leeftijd = 'afwijkend';}
+	if ($kampkort == 'top' AND ($leeftijd >= 18.0 AND $leeftijd < 21.0))	
+		{ $criteria_leeftijd = 'prima'; } elseif ($kampkort == 'top')	{ $criteria_leeftijd = 'afwijkend';}
+
+	wachthond($extdebug,1, "leeftijd ($leeftijd) binnen basiscriteria?", 		$criteria_leeftijd); 
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 1.5 INDICATIE LEEFTIJD",               			"[MARGE]");
+	wachthond($extdebug,3, "########################################################################");
+
+	if (in_array($kampkort, array("kk1","kk2")) AND ($leeftijd >=  6.7 AND $leeftijd <   7.0)) 			
+		{ $criteria_leeftijd = 'marge'; 	}
+	if (in_array($kampkort, array("kk1","kk2")) AND ($leeftijd >= 12.0 AND $leeftijd <= 12.3)) 			
+		{ $criteria_leeftijd = 'marge'; 	}
+	if (in_array($kampkort, array("bk1","bk2")) AND ($leeftijd >= 11.3 AND $leeftijd <  12.0)) 			
+		{ $criteria_leeftijd = 'marge'; 	}
+	if (in_array($kampkort, array("bk1","bk2")) AND ($leeftijd >= 14.0 AND $leeftijd <= 14.3)) 			
+		{ $criteria_leeftijd = 'marge'; 	}
+	if (in_array($kampkort, array("tk1","tk2")) AND ($leeftijd >= 13.7 AND $leeftijd <  14.0))
+		{ $criteria_leeftijd = 'marge'; 	}
+	if (in_array($kampkort, array("tk1","tk2")) AND ($leeftijd >= 16.0 AND $leeftijd <= 16.3)) 			
+		{ $criteria_leeftijd = 'marge'; 	}
+	if (in_array($kampkort, array("jk1","jk2")) AND ($leeftijd >= 15.7 AND $leeftijd <  16.0)) 			
+		{ $criteria_leeftijd = 'marge'; 	}
+	if (in_array($kampkort, array("jk1","jk2")) AND ($leeftijd >= 18.0 AND $leeftijd <= 18.3)) 			
+		{ $criteria_leeftijd = 'marge'; 	}
+
+	wachthond($extdebug,1, "leeftijd ($leeftijd) binnen criteriamarges?",	$criteria_leeftijd); 
+
+	$criteria_indicatie 	= NULL;
+	$criteria_oordeel 		= NULL;
+//	$criteria_indicatie 	= 'noggeenindicatie'; 	// M61 ZET EERST EEN DEFAULT WAARDE
+//	$criteria_oordeel 		= 'oordeelnognodig'; 	// M61 ZET EERST EEN DEFAULT WAARDE
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 2.X INDICATIE EN INITIELE BEOORDELING",       $displayname);
+	wachthond($extdebug,3, "########################################################################");
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 2.1 INDIEN ZOWEL LEEFTIJD ALS SCHOOL",           "[PRIMA]");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($criteria_leeftijd == 'prima'     AND $criteria_school == 'prima') 			{ 
+		$criteria_indicatie = 'criteriaprima'; 		$criteria_oordeel = 'oordeelnietnodig';
+		$new_criteriacheck_start = "";
+		$new_criteriacheck_einde = "";
+
+		$params_part_update['values']['PART_DEEL_INTERN.criteriacheck_start']	= $new_criteriacheck_start;
+		$params_part_update['values']['PART_DEEL_INTERN.criteriacheck_einde']	= $new_criteriacheck_einde;
+
+		wachthond($extdebug,3, "params_part_update", 							$params_part_update);
+
+		wachthond($extdebug,1, "criteria_indicatie", 	$criteria_indicatie);
+		wachthond($extdebug,1, "criteria_oordeel", 		$criteria_oordeel);
+		wachthond($extdebug,1, "criteriacheck_start", 	$criteriacheck_start);
+		wachthond($extdebug,1, "criteriacheck_einde", 	$criteriacheck_einde);
+	}
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 2.1 INDIEN ZOWEL LEEFTIJD ALS SCHOOL", 		 "[AFWIJKEND");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($criteria_leeftijd == 'afwijkend' AND $criteria_school == 'afwijkend') 		{ 
+		$criteria_indicatie = 'criteriawijktaf'; 	$criteria_oordeel = 'oordeelnognodig';
+
+		wachthond($extdebug,1, "criteria_indicatie", 	$criteria_indicatie);
+		wachthond($extdebug,1, "criteria_oordeel", 		$criteria_oordeel);		
+	}
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 2.2 INDIEN ALLEEN LEEFTIJD", 				"[AFWIJKEND]");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($criteria_leeftijd == 'afwijkend' AND $criteria_school != 'afwijkend') 			{
+
+		if ($criteria_leeftijd == 'afwijkend' AND $criteria_school == 'prima') 			{ 
+			$criteria_indicatie = 'leeftijdwijktaf'; 	$criteria_oordeel = 'oordeelnognodig'; 	}
+		if ($criteria_leeftijd == 'afwijkend' AND $criteria_school == 'marge') 			{ 
+			$criteria_indicatie = 'leeftijdwijktaf'; 	$criteria_oordeel = 'oordeelnognodig'; 	}
+
+		wachthond($extdebug,1, "criteria_indicatie", 	$criteria_indicatie);
+		wachthond($extdebug,1, "criteria_oordeel", 		$criteria_oordeel);		
+	}
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 2.3 INDIEN ALLEEN SCHOOL",  					"[AFWIJKEND]");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($criteria_leeftijd != 'afwijkend' AND $criteria_school == 'afwijkend') 			{
+
+		if ($criteria_leeftijd == 'prima'     AND $criteria_school == 'afwijkend') 		{ 
+			$criteria_indicatie = 'schoolwijktaf'; 		$criteria_oordeel = 'oordeelnognodig'; 	}
+		if ($criteria_leeftijd == 'marge' 	  AND $criteria_school == 'afwijkend') 		{ 
+			$criteria_indicatie = 'schoolwijktaf'; 		$criteria_oordeel = 'oordeelnognodig'; 	}
+
+		wachthond($extdebug,1, "criteria_indicatie", 	$criteria_indicatie);
+		wachthond($extdebug,1, "criteria_oordeel", 		$criteria_oordeel);		
+	}
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 2.4 INDIEN LEEFTIJD OF SCHOOL", 					"[MARGE]");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($criteria_leeftijd == 'marge' 	  OR $criteria_school == 'marge') 				{ 
+
+		if ($criteria_leeftijd == 'marge' 	  AND $criteria_school == 'marge') 			{ 
+			$criteria_indicatie = 'binnenmarges'; 		$criteria_oordeel = 'oordeelnietnodig';	}
+		if ($criteria_leeftijd == 'prima'     AND $criteria_school == 'marge') 			{ 
+			$criteria_indicatie = 'binnenmarges'; 		$criteria_oordeel = 'oordeelnietnodig';	}
+		if ($criteria_leeftijd == 'marge' 	  AND $criteria_school == 'prima') 			{ 
+			$criteria_indicatie = 'binnenmarges'; 		$criteria_oordeel = 'oordeelnietnodig';	}
+
+		wachthond($extdebug,1, "criteria_indicatie", 	$criteria_indicatie);
+		wachthond($extdebug,1, "criteria_oordeel", 		$criteria_oordeel);
+	}
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 3.1 EASY OP JUISTE LEEFTIJD BIJ KK/BK/TK INDIEN SCHOOL OK");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($criteria_leeftijd == 'marge' AND $criteria_school == 'prima' AND in_array($kampkort, array("kk1","kk2"))){
+	 	$criteria_indicatie = 'binnenmarges'; $criteria_oordeel = 'oordeelnietnodig';}
+	if ($criteria_leeftijd == 'marge' AND $criteria_school == 'prima' AND in_array($kampkort, array("bk1","bk2"))){ 
+		$criteria_indicatie = 'binnenmarges'; $criteria_oordeel = 'oordeelnietnodig';}
+	if ($criteria_leeftijd == 'marge' AND $criteria_school == 'prima' AND in_array($kampkort, array("tk1","tk2"))){ 
+		$criteria_indicatie = 'binnenmarges'; $criteria_oordeel = 'oordeelnietnodig';}
+
+	wachthond($extdebug,1, "criteria_indicatie", 	$criteria_indicatie);
+	wachthond($extdebug,1, "criteria_oordeel", 		$criteria_oordeel);		
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 3.2 EASY OP JUISTE KLAS BIJ JK INDIEN LEEFIJD OK IS");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($criteria_leeftijd == 'prima' AND $criteria_school == 'marge' AND in_array($kampkort,array("jk1","jk2"))){ 
+		$criteria_indicatie = 'binnenmarges'; $criteria_oordeel = 'oordeelnietnodig';
+	}
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 3.3 EASY OP JUISTE KLAS BIJ JK INDIEN LEEFIJD OK IS");
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($kampkort == 'top' AND $criteria_leeftijd == 'prima') {
+		$criteria_school 	= 'prima';
+		$criteria_indicatie = 'criteriaprima';
+		$criteria_oordeel 	= 'oordeelnietnodig';
+	}
+
+	wachthond($extdebug,1, "criteria_indicatie", 	$criteria_indicatie);
+	wachthond($extdebug,1, "criteria_oordeel", 		$criteria_oordeel);
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 4.1 SET DEFAULTS INDIEN WAARDE NU NOG NIET GEVULD");
+	wachthond($extdebug,3, "########################################################################");
+
+	if (empty($criteria_indicatie)) 	{ $criteria_indicatie 	= 'noggeenindicatie'; 		}
+	if (empty($criteria_oordeel))		{ $criteria_oordeel 	= 'oordeelnognodig'; 		}
+
+	wachthond($extdebug,1, "criteria_indicatie", 	$criteria_indicatie);
+	wachthond($extdebug,1, "criteria_oordeel", 		$criteria_oordeel);		
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 4.2 OVERSCHRIJF HANDMATIGE BEOORDELING NIET");
+	wachthond($extdebug,3, "########################################################################");
+
+	if (in_array($ditevent_criteria_oordeel, array("leeftijdtejong","leeftijdteoud","oordeelprima"))) {
+		$criteria_oordeel 	= $ditevent_criteria_oordeel;
+		wachthond($extdebug,2, "BEHOUD HANDMATIG BEOORDELING CRITIERIA", 	$criteria_oordeel);
+	}			
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 5.1 SCHRIJF DE NIEUWE WAARDEN NAAR CONTACT");
+	wachthond($extdebug,3, "########################################################################");
+
+	$params_cont_update['values']['DITJAAR.ditjaar_leeftijd']		= $criteria_leeftijd;
+	$params_cont_update['values']['DITJAAR.ditjaar_school']			= $criteria_school;
+	$params_cont_update['values']['DITJAAR.criteria_indicatie']		= $criteria_indicatie;
+	$params_cont_update['values']['DITJAAR.criteria_oordeel']		= $criteria_oordeel;	
+
+	if ($new_groepklas) {
+		$params_cont_update['values']['DITJAAR.ditjaar_groep_klas']	= $new_groepklas;
+	}
+
+	if ($contact_id) {
+		wachthond($extdebug,3, "params_cont_update", 					$params_cont_update);
+		$result_leeftijd_cont_update = civicrm_api4('Contact','update', $params_cont_update);
+		wachthond($extdebug,1, "params_cont_update", "EXECUTED");
+		wachthond($extdebug,4, "result_leeftijd_cont_update", 			$result_leeftijd_cont_update);
+	}
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 5.2 SCHRIJF DE NIEUWE WAARDEN NAAR REGISTRATIE");
+	wachthond($extdebug,3, "########################################################################");
+
+	$params_part_update['values']['PART_DEEL_INTERN.criteria_leeftijd']			= $criteria_leeftijd;
+	$params_part_update['values']['PART_DEEL_INTERN.criteria_school']			= $criteria_school;
+	$params_part_update['values']['PART_DEEL_INTERN.criteria_indicatie']		= $criteria_indicatie;
+	$params_part_update['values']['PART_DEEL_INTERN.criteria_oordeel']			= $criteria_oordeel;
+
+	if ($new_groepklas) {
+		$params_part_update['values']['PART_DEEL.Groep_klas'] 					= $new_groepklas;
+	}
+
+	if ($part_id) {
+		wachthond($extdebug,3, "params_part_update", 							$params_part_update);
+		$result_leeftijd_part_update = civicrm_api4('Participant', 'update', 	$params_part_update);
+		wachthond($extdebug,1, "params_part_update", "EXECUTED");
+		wachthond($extdebug,4, "result_leeftijd_part_update", 					$result_leeftijd_part_update);
+	}
+
+	$leeftijd_criteria_array = array(
+		'invoer_kampkort'			=> $kampkort,
+		'invoer_groepklas'			=> $groepklas,
+		'invoer_leeftijd'			=> $leeftijd,
+		'criteria_leeftijd'			=> $criteria_leeftijd,
+		'criteria_school'			=> $criteria_school,
+		'criteria_indicatie' 		=> $criteria_indicatie,
+		'criteria_oordeel' 			=> $criteria_oordeel,
+		'criteriacheck_start' 		=> $new_criteriacheck_start,
+		'criteriacheck_einde' 		=> $new_criteriacheck_einde,
+	);
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### CRITERIA - 6.0 RETURN LEEFTIJD_CRTITERIA_ARRAY", $leeftijd_criteria_array);
+	wachthond($extdebug,3, "########################################################################");
+
+	return $leeftijd_criteria_array;
+
+}
+
+function leeftijd_civicrm_status($array_partevent, $array_criteria = NULL) {
+
+	$extdebug 				= 3;
+	$apidebug   			= FALSE;
+
+	if (is_array($array_partevent)) {
+		$array_partditevent = $array_partevent;
+	} else {
+		return;
+	}
+
+	wachthond($extdebug,2, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS 1.1 BEPAAL PART STATUS & DEELNAMESTATUS",   "[START]");
+	wachthond($extdebug,2, "########################################################################");
+
+	$displayname 							= $array_partditevent['displayname'] 						?? NULL;
+	$contact_id 							= $array_partditevent['contact_id'] 						?? NULL;
+
+    $ditevent_part_contact_id 				= $array_partditevent['contact_id']							?? NULL;
+    $ditevent_part_eventid 					= $array_partditevent['event_id']							?? NULL;
+    $ditevent_part_id   					= $array_partditevent['id'] 								?? NULL;
+    $ditevent_part_role_id     				= $array_partditevent['role_id']							?? NULL;
+    $ditevent_part_status_id 				= $array_partditevent['status_id']							?? NULL;
+    $ditevent_part_status_name  			= $array_partditevent['status_name']						?? NULL;
+
+   	$ditevent_register_date     			= $array_partditevent['register_date']						?? NULL;
+    $ditevent_event_start 					= $array_partditevent['event_start_date']					?? NULL;
+    $ditevent_event_einde 					= $array_partditevent['event_end_date']						?? NULL;
+
+    $ditevent_event_kampnaam   				= $array_partditevent['kenmerken_kampnaam']					?? NULL;
+    $ditevent_event_kampkort 				= $array_partditevent['kenmerken_kampkort']					?? NULL;
+
+    $ditevent_part_kampnaam   				= $array_partditevent['part_kampnaam']						?? NULL;
+    $ditevent_part_kampkort 				= $array_partditevent['part_kampkort']						?? NULL;
+
+    $ditevent_part_functie 					= $array_partditevent['part_kampfunctie']					?? NULL;
+    $ditevent_part_rol 						= $array_partditevent['part_kamprol']						?? NULL;
+
+	if ($ditevent_part_rol == 'deelnemer') {
+
+		$ditevent_wachtlijst_erop			= $array_partditevent['part_wachtlijst_erop'] 				?? NULL;
+		$ditevent_wachtlijst_eraf			= $array_partditevent['part_wachtlijst_eraf'] 				?? NULL;
+		$ditevent_criteriacheck_start 		= $array_partditevent['part_criteriacheck_start'] 			?? NULL;
+		$ditevent_criteriacheck_einde 		= $array_partditevent['part_criteriacheck_einde'] 			?? NULL;
+
+		$ditevent_criteria_leeftijd 		= $array_partditevent['part_criteria_leeftijd'] 			?? NULL;
+		$ditevent_criteria_school 			= $array_partditevent['part_criteria_school'] 				?? NULL;
+		$ditevent_criteria_indicatie 		= $array_partditevent['part_criteria_indicatie'] 			?? NULL;
+		$ditevent_criteria_oordeel 			= $array_partditevent['part_criteria_oordeel'] 				?? NULL;
+	}
+
+    wachthond($extdebug,3, 'displayname',           				$displayname);
+    wachthond($extdebug,3, 'contact_id',           					$contact_id);
+    wachthond($extdebug,3, 'ditevent_contact_id',           		$ditevent_part_contact_id);
+
+    wachthond($extdebug,3, 'ditevent_event_kampnaam',       		$ditevent_event_kampnaam);
+    wachthond($extdebug,3, 'ditevent_event_kampkort',       		$ditevent_event_kampkort);
+    wachthond($extdebug,3, 'ditevent_part_kampnaam',       			$ditevent_part_kampnaam);
+    wachthond($extdebug,3, 'ditevent_part_kampkort',       			$ditevent_part_kampkort);
+
+    wachthond($extdebug,3, 'ditevent_register_date',      			$ditevent_register_date);
+    wachthond($extdebug,3, 'ditevent_event_start',          		$ditevent_event_start);
+    wachthond($extdebug,3, 'ditevent_event_einde',          		$ditevent_event_einde);
+    wachthond($extdebug,3, 'ditevent_kampjaar',             		$ditevent_kampjaar);    
+
+    wachthond($extdebug,3, 'ditevent_part_id',              		$ditevent_part_id);
+    wachthond($extdebug,2, 'ditevent_part_eventid',         		$ditevent_part_eventid);
+    wachthond($extdebug,3, 'ditevent_part_status_id',       		$ditevent_part_status_id);
+    wachthond($extdebug,3, 'ditevent_part_status_name',     		$ditevent_part_status_name);
+
+	wachthond($extdebug,2, 'ditevent_functie',              		$ditevent_part_functie);
+    wachthond($extdebug,2, 'ditevent_part_rol',             		$ditevent_part_rol);
+
+	if ($ditevent_part_rol == 'deelnemer') {
+
+	    wachthond($extdebug,3, 'ditevent_criteria_leeftijd', 		$ditevent_criteria_leeftijd);
+		wachthond($extdebug,3, 'ditevent_criteria_school', 			$ditevent_criteria_school);
+		wachthond($extdebug,3, 'ditevent_criteria_indicatie', 		$ditevent_criteria_indicatie);
+		wachthond($extdebug,3, 'ditevent_criteria_oordeel', 		$ditevent_criteria_oordeel);
+
+		wachthond($extdebug,3, 'ditevent_wachtlijst_erop', 			$ditevent_wachtlijst_erop);
+		wachthond($extdebug,3, 'ditevent_wachtlijst_eraf', 			$ditevent_wachtlijst_eraf);
+		wachthond($extdebug,3, 'ditevent_criteriacheck_start',		$ditevent_criteriacheck_start);
+		wachthond($extdebug,3, 'ditevent_criteriacheck_einde',		$ditevent_criteriacheck_einde);
+
+		$new_ditevent_criteria_leeftijd		= $array_criteria['criteria_leeftijd'] 		?? NULL;
+		$new_ditevent_criteria_school		= $array_criteria['criteria_school'] 		?? NULL;
+		$new_ditevent_criteria_indicatie	= $array_criteria['criteria_indicatie'] 	?? NULL;
+		$new_ditevent_criteria_oordeel		= $array_criteria['criteria_oordeel'] 		?? NULL;
+
+		wachthond($extdebug,2, 'new_ditevent_criteria_leeftijd', 	$new_ditevent_criteria_leeftijd);
+		wachthond($extdebug,2, 'new_ditevent_criteria_school', 		$new_ditevent_criteria_school);
+		wachthond($extdebug,2, 'new_ditevent_criteria_indicatie', 	$new_ditevent_criteria_indicatie);
+		wachthond($extdebug,2, 'new_ditevent_criteria_oordeel', 	$new_ditevent_criteria_oordeel);	
+
+		wachthond($extdebug,2, "########################################################################");
+		wachthond($extdebug,2, 'new_ditevent_criteria_array', 		$array_criteria);
+
+		if ($new_ditevent_criteria_leeftijd) {
+			$ditevent_criteria_leeftijd 		= $new_ditevent_criteria_leeftijd;
+		}
+		if ($new_ditevent_criteria_school) {
+			$ditevent_criteria_school 			= $new_ditevent_criteria_school;
+		}
+		if ($new_ditevent_criteria_indicatie) {
+			$ditevent_criteria_indicatie		= $new_ditevent_criteria_indicatie;
+		}
+		if ($new_ditevent_criteria_oordeel) {
+			$ditevent_criteria_oordeel 			= $new_ditevent_criteria_oordeel;
+		}	
+
+		// ZET DE WAARDE VOOR DE NIEUWE VELDEN DEFAULT OP DE BESTAANDE WAARDE
+
+		if ($ditevent_part_status_id) 	   { $new_ditevent_part_status_id 	  = $ditevent_part_status_id 	  ?? NULL; }
+		if ($ditevent_criteria_oordeel)    { $new_ditevent_criteria_oordeel   = $ditevent_criteria_oordeel 	  ?? NULL; }
+
+		if ($ditevent_part_deelnamestatus) { $new_ditevent_deelnamestatus 	  = $ditevent_part_deelnamestatus ?? NULL; }
+		if ($ditevent_criteria_indicatie)  { $new_ditevent_criteria_indicatie = $ditevent_criteria_indicatie  ?? NULL; }
+
+		$new_ditevent_part_status_id		= $ditevent_part_status_id;
+		$new_ditevent_criteria_indicatie	= $ditevent_criteria_indicatie;
+		$new_ditevent_criteria_oordeel 		= $ditevent_criteria_oordeel;
+
+	    wachthond($extdebug,3, 'new_ditevent_criteria_indicatie', 	$new_ditevent_criteria_indicatie);
+		wachthond($extdebug,3, 'new_ditevent_criteria_oordeel', 	$new_ditevent_criteria_oordeel);
+	}
+
+	wachthond($extdebug,2, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS 1.2 CORRIGEER STATUSSEN 0, 5 & 6",       $displayname);
+	wachthond($extdebug,2, "########################################################################");
+
+	###########################################################################################
+	// (onbekend [0], afwachting betaling [5], afgebroken betaling [6] > geregistreerd)
+	// M61: TODO: de status hoort sws niet op 0 / Onbekend te kunnen komen
+	###########################################################################################
+
+	// M61: VERY URGENT TODO: HIER NOG OPHALEN OF EVENT OP WACHTLIJST STAAT, NIET ZOMAAR BEVESTIGEN !!!
+
+	wachthond($extdebug,3, 'new_ditevent_part_status_id',    		$new_ditevent_part_status_id);
+    wachthond($extdebug,4, 'new_ditevent_part_status_name',  		$new_ditevent_part_status_name);
+
+	if (in_array($ditevent_part_status_id, array(0)) OR in_array($ditevent_part_status_id, array(5,6))) {
+
+		wachthond($extdebug,3, 'ditevent_part_rol', 				$ditevent_part_rol);
+		wachthond($extdebug,3, 'ditevent_criteria_indicatie', 		$ditevent_criteria_indicatie);
+
+		if ($ditevent_part_rol == 'deelnemer') {
+
+			if ($ditevent_criteria_indicatie == 'criteriaprima') {
+//				$new_ditevent_part_status_id 			= 1;
+				$new_ditevent_part_status_name 			= 'Registered';
+				$new_ditevent_deelnamestatus 			= 'Bevestigd';
+				wachthond($extdebug,2, 'ditevent_part_status_id was 0', "updated to 1");
+			}
+
+			if ($ditevent_criteria_indicatie == 'criteriawijktaf') {
+//				$new_ditevent_part_status_id 			= 8;
+				$new_ditevent_part_status_name 			= 'Awaiting approval';
+				$new_ditevent_deelnamestatus 			= 'Criteriacheck';
+				$new_criteriacheck_start 		= $ditevent_register_date;
+				wachthond($extdebug,2, 'ditevent_part_status_id was 0', "updated to 8");
+			}
+		}
+
+		wachthond($extdebug,4, 'org_ditevent_part_status_id', 			$ditevent_part_status_id);
+		wachthond($extdebug,4, 'new_ditevent_part_status_id', 			$new_ditevent_part_status_id);
+
+		if ($ditevent_part_rol == 'deelnemer') {
+			wachthond($extdebug,4, 'new_ditevent_criteria_indicatie', 	$new_ditevent_criteria_indicatie);
+			wachthond($extdebug,4, 'new_ditevent_criteria_oordeel', 	$new_ditevent_criteria_oordeel);
+		}
+
+	} else {
+		wachthond($extdebug,3, "correctie niet nodig");
+	}
+
+	wachthond($extdebug,2, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS 2.1 BEPAAL DEELNAMESTATUS");
+	wachthond($extdebug,2, "########################################################################");
+
+	################################################################################################
+	# RETREIVE TODAY FISCAL YEAR START VALUE FROM CACHE
+	################################################################################################
+	$status_positive 		= Civi::cache()->get('cache_status_positive');
+	$status_pending 		= Civi::cache()->get('cache_status_pending');
+	$status_waiting 		= Civi::cache()->get('cache_status_waiting');
+	$status_negative 		= Civi::cache()->get('cache_status_negative');
+
+	wachthond($extdebug,4, 'statusids_positive',	$status_positive);
+	wachthond($extdebug,4, 'statusids_pending',		$status_pending);
+	wachthond($extdebug,4, 'statusids_waiting',		$status_waiting);
+	wachthond($extdebug,4, 'statusids_negative',	$status_negative);
+
+	if (in_array($new_ditevent_part_status_id,	$status_positive)) 		{
+		// M61: DIT BETREFT ALLE POSITIEVE STATUSSEN ZOALS OVERGEDRAGEN / EERDER NAAR HUIS / EN IK BEN ER BIJ
+		$new_ditevent_deelnamestatus	= 'Bevestigd';
+	}
+
+	if ($ditevent_part_status_id == '1') {
+		// M61: DIT MOET HIER ECHT 1 ZIJN op ALLE POSITIEVE
+		$new_ditevent_part_status_id 	= 1;
+		$new_ditevent_part_status_name 	= 'Registered';
+		$new_ditevent_deelnamestatus 	= 'Bevestigd';
+		wachthond($extdebug,2, "a FORCEER DEELNAMESTATUS BEVESTIGD INDIEN STATUS = 1 EN OORDEELNIETNODIG");
+
+	    wachthond($extdebug,3, 'new_ditevent_part_status_id',       	$new_ditevent_part_status_id);
+	    wachthond($extdebug,3, 'new_ditevent_part_status_name',     	$new_ditevent_part_status_name);
+	    wachthond($extdebug,3, 'new_ditevent_deelnamestatus',     		$new_ditevent_deelnamestatus);
+	}
+
+//	if (in_array($new_ditevent_part_status_id,	$status_waiting)) 		{ 
+	if ($ditevent_part_status_id == '7') {
+		$new_ditevent_part_status_id 	= 7;
+		$new_ditevent_part_status_name 	= 'On waitlist';
+		$new_ditevent_deelnamestatus 	= "Wachtlijst";
+		wachthond($extdebug,2, "b FORCEER STATUS WACHTLIJST INDIEN WACHTLIJST");
+		// M61: Indien wachtlijst & criteriacheck zet dan status op wachtlijst en deelnamestatus op criteriacheck
+
+	    wachthond($extdebug,3, 'new_ditevent_part_status_id',       	$new_ditevent_part_status_id);
+	    wachthond($extdebug,3, 'new_ditevent_part_status_name',     	$new_ditevent_part_status_name);
+	    wachthond($extdebug,3, 'new_ditevent_deelnamestatus',     		$new_ditevent_deelnamestatus);
+
+	}
+
+	if ($ditevent_part_status_id == '8' AND $ditevent_criteria_oordeel == 'oordeelnognodig') {
+		$new_ditevent_part_status_id 	= 8;
+		$new_ditevent_part_status_name 	= 'Awaiting approval';
+		$new_ditevent_deelnamestatus 	= "Criteriacheck";
+		wachthond($extdebug,2, "c FORCEER STATUS CRITERIACHECK INDIEN AFWACHTING OORDEEL");
+
+	    wachthond($extdebug,3, 'new_ditevent_part_status_id',       	$new_ditevent_part_status_id);
+	    wachthond($extdebug,3, 'new_ditevent_part_status_name',     	$new_ditevent_part_status_name);
+	    wachthond($extdebug,3, 'new_ditevent_deelnamestatus',     		$new_ditevent_deelnamestatus);
+	}
+
+//	if (in_array($new_ditevent_part_status_id,	$status_negative)) 		{ 
+	if ($ditevent_part_status_id == '4') {
+		$new_ditevent_part_status_id 	= 4;
+		$new_ditevent_part_status_name 	= 'Cancelled';
+		$new_ditevent_deelnamestatus 	= "Geannuleerd";
+		wachthond($extdebug,2, "d FORCEER STATUS GEANNULEERD INDIEN GEANNULEERD");
+
+	    wachthond($extdebug,3, 'new_ditevent_part_status_id',       	$new_ditevent_part_status_id);
+	    wachthond($extdebug,3, 'new_ditevent_part_status_name',     	$new_ditevent_part_status_name);
+	    wachthond($extdebug,3, 'new_ditevent_deelnamestatus',     		$new_ditevent_deelnamestatus);
+	}
+
+	if ($ditevent_part_status_id == '2') { 	// STATUS 'DEELNGENOMEN'
+		$new_ditevent_part_status_id 	= 2;
+		$new_ditevent_part_status_name 	= 'Deelgenomen';
+		$new_ditevent_deelnamestatus 	= 'Deelgenomen';
+		wachthond($extdebug,2, "e HOUDT STATUS DEELGENOMEN HETZELFDE");
+
+	    wachthond($extdebug,3, 'new_ditevent_part_status_id',       	$new_ditevent_part_status_id);
+	    wachthond($extdebug,3, 'new_ditevent_part_status_name',     	$new_ditevent_part_status_name);
+	    wachthond($extdebug,3, 'new_ditevent_deelnamestatus',     		$new_ditevent_deelnamestatus);
+	}
+
+	if ($ditevent_part_rol == 'leiding') {	
+		$new_ditevent_part_status_id 	= 1;
+		$new_ditevent_part_status_name 	= 'Registered';
+		$new_ditevent_deelnamestatus 	= 'Bevestigd';
+		wachthond($extdebug,2, "f FORCEER STATUS BEVESTIGD VOOR KAMPLEIDERS");
+
+	    wachthond($extdebug,3, 'new_ditevent_part_status_id',       	$new_ditevent_part_status_id);
+	    wachthond($extdebug,3, 'new_ditevent_part_status_name',     	$new_ditevent_part_status_name);
+	    wachthond($extdebug,3, 'new_ditevent_deelnamestatus',     		$new_ditevent_deelnamestatus);
+	}
+
+	wachthond($extdebug,2, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS 3.2 FORCEER AFWACHTING OORDEEL",         $displayname);
+	wachthond($extdebug,2, "########################################################################");
+
+	if ($ditevent_part_rol == 'deelnemer') {
+
+		if ($ditevent_criteria_oordeel == 'oordeelnognodig' AND $ditevent_criteria_indicatie == 'criteriawijktaf') {
+			$new_ditevent_part_status_id 			= 8;
+			$new_ditevent_part_status_name 			= "Awaiting approval";
+			$new_ditevent_deelnamestatus 			= "Criteriacheck";
+			$new_criteriacheck_start 		= $ditevent_register_date;
+			wachthond($extdebug,2, "a FORCEER VOORLOPIG STATUS AFWACHTING OORDEEL IVM LEEFTIJD/SCHOOL");
+		}
+
+		if ($ditevent_criteria_oordeel == 'oordeelnognodig' AND $ditevent_criteria_indicatie == 'schoolwijktaf' 
+			AND in_array($ditevent_event_kampkort, array("kk1","kk2","bk1","bk2"))) {
+			$new_ditevent_part_status_id 			= 8;
+			$new_ditevent_part_status_name 			= "Awaiting approval";		
+			$new_ditevent_deelnamestatus 			= "Criteriacheck";
+			wachthond($extdebug,2, "b FORCEER VOORLOPIG STATUS AFWACHTING OORDEEL IVM SCHOOL BIJ KK/BK");
+		}
+	}
+
+	wachthond($extdebug,2, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS 4.1 HANDLE DATUM WACHTLIJST EROP / ERAF");
+	wachthond($extdebug,2, "########################################################################");
+
+	$wachtlijst_ditmoment 		= 0;
+	$wachtlijst_voorheen 		= 0;
+
+	if ($ditevent_wachtlijst_erop AND empty($ditevent_wachtlijst_erop)) {
+		$wachtlijst_ditmoment 	= 1;
+	} else 
+	if ($ditevent_wachtlijst_erop AND $ditevent_wachtlijst_erop) {
+		$wachtlijst_voorheen 	= 1;
+	}
+
+//	if ($new_ditevent_part_status_id == '7' AND empty($ditevent_wachtlijst_erop)) {
+	if ($new_ditevent_part_status_id == '7') {
+
+		wachthond($extdebug,2, 'ditevent_register_date', 	$ditevent_register_date);	
+		$new_ditevent_wachtlijst_erop = $ditevent_register_date;		
+		wachthond($extdebug,1, "### FORCEER DATUM WACHTLIJST EROP INDIEN VAN TOEPASSING ###");
+
+		wachthond($extdebug,3, 'org_ditevent_wachtlijst_erop', 		$ditevent_wachtlijst_erop);
+		wachthond($extdebug,3, 'new_ditevent_wachtlijst_erop', 		$new_ditevent_wachtlijst_erop);
+	}
+
+	wachthond($extdebug,2, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS 4.2 HANDLE DATUM CRITERIACHECK START/STOP");
+	wachthond($extdebug,2, "########################################################################");
+
+	wachthond($extdebug,3, 'ditevent_criteriacheck_start', 		$ditevent_criteriacheck_start);
+	wachthond($extdebug,3, 'ditevent_criteriacheck_einde', 		$ditevent_criteriacheck_einde);
+
+	wachthond($extdebug,2, 'org_ditevent_criteria_indicatie',	$ditevent_criteria_indicatie);
+	wachthond($extdebug,2, 'new_ditevent_criteria_indicatie', 	$new_ditevent_criteria_indicatie);
+
+	wachthond($extdebug,2, 'org_ditevent_criteria_oordeel',		$ditevent_criteria_oordeel);
+	wachthond($extdebug,2, 'new_ditevent_criteria_oordeel', 	$new_ditevent_criteria_oordeel);
+
+	$criteriacheck_ditmoment 		= 0;
+	$criteriacheck_voorheen 		= 0;
+
+	if ($ditevent_criteriacheck_start AND empty($ditevent_criteriacheck_einde)) {
+		$criteriacheck_ditmoment 	= 1;
+	}
+	if ($ditevent_criteriacheck_start AND $ditevent_criteriacheck_einde) {
+		$criteriacheck_voorheen 	= 1;
+	}
+
+	# INDIEN CRITERIAOORDEEL NOG NODIG
+	if ($new_ditevent_criteria_oordeel == 'oordeelnognodig') {
+		$new_criteriacheck_start = $ditevent_register_date;
+		wachthond($extdebug,1, "### FORCEER DATUM CRITERIACHECK INDIEN NODIG ###", $new_criteriacheck_start);
+	}
+
+	# INDIEN OP CRITERIACHECK EN DATUM CRITERIACHECK START IS NOG LEEG
+//	if ($new_ditevent_part_status_id == '8' AND empty($ditevent_criteriacheck_start)) {
+	if ($new_ditevent_part_status_id == '8') {
+		$new_criteriacheck_start = $ditevent_register_date;
+		wachthond($extdebug,1, "### FORCEER DATUM CRITERIACHECK INDIEN NODIG ###", $new_criteriacheck_start);
+	}
+
+	if ($new_ditevent_criteria_oordeel == "oordeelnietnodig") {
+		$new_criteriacheck_start = "";
+		wachthond($extdebug,1, "### CORRIGEER DATUM CRITERIACHECK INDIEN ONTERECHT INGEVULD ###", "[maak leeg]");
+	}
+
+	wachthond($extdebug,3, 'criteriacheck_voorheen', 			$criteriacheck_voorheen);
+	wachthond($extdebug,3, 'criteriacheck_ditmoment', 			$criteriacheck_ditmoment);
+
+	wachthond($extdebug,2, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS 4.3 STATUS NA HANDMATIGE BEOORDELING",   $displayname);
+	wachthond($extdebug,2, "########################################################################");
+
+	if ($ditevent_part_rol == 'deelnemer') {
+
+		wachthond($extdebug,4, "org_ditevent_deelnamestatus",		$ditevent_deelnamestatus);
+		wachthond($extdebug,3, "new_ditevent_deelnamestatus",		$new_ditevent_deelnamestatus);
+
+		wachthond($extdebug,3, 'new_ditevent_criteria_indicatie', 	$new_ditevent_criteria_indicatie);
+		wachthond($extdebug,3, 'new_ditevent_criteria_oordeel', 	$new_ditevent_criteria_oordeel);
+
+		###########################################################################################
+		### INDIEN HANDMATIGE BEOORDELING CRITERIA = PRIMA > PAS DAN STATUS AAN 
+		// M61 CHECK URGENT: 	heel erg tricky want moet rekening houden met wachtlijst
+		// M61:					status kan alleen van 'afwachting beoordeling' naar geregistreerd indien er ruimte is
+		// M61:					een check kan zijn lineitem want bij 'echte wachtlijst' is er nog geen betaling 
+		// M61: dit hangt af van het perfect kloppen van de waarde van part_deel wachtlijst_erop en wachtlijst_eraf
+		###########################################################################################
+
+	    wachthond($extdebug,3, 'ditevent_criteria_leeftijd', 		$ditevent_criteria_leeftijd);
+		wachthond($extdebug,3, 'ditevent_criteria_school', 			$ditevent_criteria_school);
+		wachthond($extdebug,3, 'ditevent_criteria_indicatie', 		$ditevent_criteria_indicatie);
+		wachthond($extdebug,3, 'ditevent_criteria_oordeel', 		$ditevent_criteria_oordeel);
+
+		wachthond($extdebug,3, 'new_ditevent_wachtlijst_erop', 		$new_ditevent_wachtlijst_erop);
+		wachthond($extdebug,3, 'new_ditevent_wachtlijst_eraf', 		$new_ditevent_wachtlijst_eraf);
+		wachthond($extdebug,3, 'new_criteriacheck_start',	$new_criteriacheck_start);
+		wachthond($extdebug,3, 'new_criteriacheck_einde',	$new_criteriacheck_einde);
+
+		if ($ditevent_criteria_oordeel = "oordeelprima" AND $ditevent_part_status_id == 8) {
+
+			if (empty($ditevent_wachtlijst_erop) AND empty($ditevent_wachtlijst_eraf)) {
+
+//				$new_ditevent_part_status_id 	= 1;
+//				$new_ditevent_part_status_name 	= 'Registered';
+//				$new_ditevent_deelnamestatus 	= 'Bevestigd';
+
+				wachthond($extdebug,3, "'AFWACHTING OORDEEL' > 'REGISTERED' NA 'OORDEELPRIMA'", "[!= WACHTLIJST]");
+			}
+
+			if ($ditevent_wachtlijst_erop AND $ditevent_wachtlijst_eraf) {
+
+//				$new_ditevent_part_status_id 	= 1;
+//				$new_ditevent_part_status_name 	= 'Registered';
+//				$new_ditevent_deelnamestatus 	= 'Bevestigd';
+
+				wachthond($extdebug,3, "'AFWACHTING OORDEEL' > 'REGISTERED' NA 'OORDEELPRIMA'", "[WACHTLIJST ERAF]");
+			}
+
+			if ($ditevent_wachtlijst_erop AND empty($ditevent_wachtlijst_eraf)) {
+
+//				$new_ditevent_part_status_id 	= 7;
+//				$new_ditevent_part_status_name 	= 'On waitlist';
+//				$new_ditevent_deelnamestatus 	= 'Wachtlijst';
+
+				wachthond($extdebug,3, "'AFWACHTING OORDEEL' > 'WACHTLIJST' NA 'OORDEELPRIMA'", "[== WACHTLIJST]");
+			}
+
+		}
+
+		if ($ditevent_lineitem_contribid > 0) {
+			// M61: GEEN WACHTLIJST 	?
+		} else {
+			// M61: WEL WACHTLIJST 		?
+		}
+
+	}
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS - 5.0 SCHRIJF DE NIEUWE WAARDEN NAAR REGISTRATIE");
+	wachthond($extdebug,3, "########################################################################");
+
+	$params_status_part_update = [
+		#'reload' 			=> TRUE,
+		'checkPermissions' 	=> FALSE,
+			'where' => [
+			['id', '=', $part_id],
+			],
+		'values' => [
+			'id' 	=> 	$part_id,
+		],				
+	];
+
+	if ($new_ditevent_part_status_id) {
+		$params_status_part_update['values']['status_id']			= $new_ditevent_part_status_id;
+	}
+	if ($new_ditevent_deelnamestatus) {
+		$params_status_part_update['values']['PART.deelnamestatus']	= $new_ditevent_deelnamestatus;
+	}
+
+	if ($part_id) {
+		wachthond($extdebug,3, "params_status_part_update", 					$params_status_part_update);
+		$result_status_part_update = civicrm_api4('Participant', 'update', 		$params_status_part_update);
+		wachthond($extdebug,1, "params_status_part_update", "EXECUTED");
+		wachthond($extdebug,4, "result_status_part_update", 					$result_status_part_update);
+	}
+
+	wachthond($extdebug,2, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS 6.0 MAAK DEFINITIEF RESULTAAT",          $displayname);
+	wachthond($extdebug,2, "########################################################################");
+
+    wachthond($extdebug,3, 'displayname',           				$displayname);
+    wachthond($extdebug,3, 'ditevent_contact_id',           		$ditevent_part_contact_id);
+    wachthond($extdebug,3, 'ditevent_part_eventid',         		$ditevent_part_eventid);
+    wachthond($extdebug,3, 'ditevent_event_kampnaam',       		$ditevent_event_kampnaam);
+    wachthond($extdebug,3, 'ditevent_event_kampkort',       		$ditevent_event_kampkort);
+
+	if ($ditevent_part_rol == 'deelnemer') {
+		wachthond($extdebug,3, 'new_ditevent_criteria_indicatie', 	$new_ditevent_criteria_indicatie);
+		wachthond($extdebug,3, 'new_ditevent_criteria_oordeel', 	$new_ditevent_criteria_oordeel);
+	}
+
+    wachthond($extdebug,3, 'new_ditevent_part_status_id',       	$new_ditevent_part_status_id);
+    wachthond($extdebug,3, 'new_ditevent_part_status_name',     	$new_ditevent_part_status_name);
+    wachthond($extdebug,3, 'new_ditevent_deelnamestatus',     		$new_ditevent_deelnamestatus);
+
+	if ($ditevent_part_rol == 'deelnemer') {
+
+	   	$leeftijd_status = array(
+	   		'displayname'							=> 	$displayname,
+	   		'contact_id'							=> 	$ditevent_part_contact_id,
+	   		'ditevent_eventid'						=> 	$ditevent_part_eventid,
+	   		'ditevent_event_kampnaam'				=> 	$ditevent_event_kampnaam,
+	   		'ditevent_event_kampkort'				=> 	$ditevent_event_kampkort,
+	   		'ditevent_part_kampnaam'				=> 	$ditevent_part_kampnaam,
+	   		'ditevent_part_kampkort'				=> 	$ditevent_part_kampkort,
+
+			'new_wachtlijst_erop'					=>	$new_wachtlijst_erop,
+			'new_wachtlijst_eraf'					=>	$new_wachtlijst_eraf,
+			'new_criteriacheck_start'				=>	$new_criteriacheck_start,
+			'new_criteriacheck_einde'				=>	$new_criteriacheck_einde,
+
+	    	'new_ditevent_part_status_id'			=> 	$new_ditevent_part_status_id,
+	    	'new_ditevent_part_status_name' 		=> 	$new_ditevent_part_status_name,
+	    	'new_ditevent_deelnamestatus' 			=> 	$new_ditevent_deelnamestatus,
+		);
+	}
+	if ($ditevent_part_rol == 'leiding') {
+
+	   	$leeftijd_status = array(
+	   		'displayname'							=> 	$displayname,
+	   		'contact_id'							=> 	$ditevent_part_contact_id,
+	   		'ditevent_eventid'						=> 	$ditevent_part_eventid,
+	   		'ditevent_event_kampnaam'				=> 	$ditevent_event_kampnaam,
+	   		'ditevent_event_kampkort'				=> 	$ditevent_event_kampkort,
+	   		'ditevent_part_kampnaam'				=> 	$ditevent_part_kampnaam,
+	   		'ditevent_part_kampkort'				=> 	$ditevent_part_kampkort,
+	    	'new_ditevent_part_status_id'			=> 	$new_ditevent_part_status_id,
+	    	'new_ditevent_part_status_name' 		=> 	$new_ditevent_part_status_name,
+	    	'new_ditevent_deelnamestatus' 			=> 	$new_ditevent_deelnamestatus,
+		);
+	}
+
+	wachthond($extdebug,2, "########################################################################");		
+	wachthond($extdebug,3, "RETURN leeftijd_status", 		                         $leeftijd_status);
+	wachthond($extdebug,2, "########################################################################");
+
+	wachthond($extdebug,2, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD STATUS - BEPAAL PART STATUS & DEELNAMESTATUS",     "[EINDE]");
+	wachthond($extdebug,2, "########################################################################");
+
+	return $leeftijd_status;
+}
+
+/**
+ * Implementation of hook_civicrm_config
+ */
+function leeftijd_civicrm_config(&$config)
+{
+		_leeftijd_civix_civicrm_config($config);
+}
+
+/**
+ * Implementation of hook_civicrm_xmlMenu
+ *
+ * @param $files array(string)
+ */
+
+/*
+function leeftijd_civicrm_xmlMenu(&$files)
+{
+		_leeftijd_civix_civicrm_xmlMenu($files);
+}
+*/
+
+
+/**
+ * Implementation of hook_civicrm_install
+ */
+function leeftijd_civicrm_install()
+{
+		return _leeftijd_civix_civicrm_install();
+}
+
+/**
+ * Implementation of hook_civicrm_enable
+ */
+function leeftijd_civicrm_enable()
+{
+		return _leeftijd_civix_civicrm_enable();
+}
+
+/**
+ * Implementation of hook_civicrm_managed
+ *
+ * Generate a list of entities to create/deactivate/delete when this module
+ * is installed, disabled, uninstalled.
+ */
+
+/*
+function leeftijd_civicrm_managed(&$entities)
+{
+		return _leeftijd_civix_civicrm_managed($entities);
+}
+*/
+
+function leeftijd_greeting($job, $groupID, $entityID, $basedate, $array_partevent = NULL) {
+
+	$email_greeting_id		= 1;
+	$postal_greeting_id		= 1;
+	$addressee_id 			= 1;
+	$communication_style_id = 'formal';
+
+	wachthond($extdebug,3, "########################################################################");
+	wachthond($extdebug,1, "### LEEFTIJD - 1.2 BEPAAL LEEFTIJD EVENT",  				    $basedate);
+	wachthond($extdebug,3, "########################################################################");
+
+	if ($job == 'event') {
+
+	   	#####################################################################################################
+		### RETREIVE CONTACTID IF STARTED WITH ONLY PARTID 
+		// M61 TODO DIT KAN OOK DOOR ALS INPUT part_array te gebruiken
+		#####################################################################################################
+
+		if (in_array($groupID, array("139", "190"))) { // PART
+			$params_leeftijd_part_get = [
+				'checkPermissions' => FALSE,
+				'select' => [
+    				'id', 
+    				'contact_id', 
+    				'event_id', 
+    				'event_id.event_type_id',
+    				'status_id', 
+    				'PART.PART_welkkamp_kort',
+				],
+  				'where' => [
+    				['id', '=', $entityID],
+  				],
+			];
+
+			if (in_array($groupID, array("139"))) { // PART
+				array_push($params_leeftijd_part_get['select'],'PART_DEEL.Groep_klas');
+				array_push($params_leeftijd_part_get['select'],'PART_DEEL_INTERN.criteria_indicatie');
+				array_push($params_leeftijd_part_get['select'],'PART_DEEL_INTERN.criteria_oordeel');
+			}
+
+			wachthond($extdebug,3, "params_leeftijd_part_get",				$params_leeftijd_part_get);
+			$result_leeftijd_part_get = civicrm_api4('Participant','get',	$params_leeftijd_part_get);
+			wachthond($extdebug,3, "result_leeftijd_part_get",				$result_leeftijd_part_get);
+		}
+
+		if (in_array($groupID, array("139", "190"))) {
+			$contact_id	= $result_leeftijd_part_get[0]['contact_id'];
+			$part_id 	= $entityID;
+		} else {
+			$contact_id = $entityID;
+		}
+
+	   	#####################################################################################################
+		### RETREIVE KEREN TOPKAMP + KEREN LEID (M61: TODO DIT IS DENK IK VOORAL VOOR GREETING ID)
+	   	#####################################################################################################
+
+		if (in_array($groupID, array("149", "225", "139", "190"))) { 		// TAB & PART
+			$params_leeftijd_cont_get = [
+				'checkPermissions' => FALSE,
+				'select' => [
+    				'id', 
+    				'birth_date', 
+    				'first_name', 
+    				'display_name', 
+    				'email_greeting_id', 
+    				'postal_greeting_id',
+    				'Curriculum.Keren_Topkamp',
+    				'Curriculum.Keren_Leid',
+				],
+  				'where' => [
+    				['id', '=', $contact_id],
+  				],
+			];
+
+			wachthond($extdebug,3, "params_leeftijd_cont_get", 			$params_leeftijd_cont_get);
+			$result_leeftijd_cont_get = civicrm_api4('Contact', 'get', 	$params_leeftijd_cont_get);
+			wachthond($extdebug,3, "result_leeftijd_cont_get", 			$result_leeftijd_cont_get);
+
+		}
+		if (in_array($groupID, array("149", "225", "139", "190"))) { 		// TAB & PART
+			$displayname 				= $result_leeftijd_cont_get[0]['display_name'];	// displayname van contact
+			$birthdate					= $result_leeftijd_cont_get[0]['birth_date'];
+			$keren_top					= $result_leeftijd_cont_get[0]['Curriculum.Keren_Topkamp'];
+			$keren_leid					= $result_leeftijd_cont_get[0]['Curriculum.Keren_Leid'];
+
+			wachthond($extdebug,3, "displayname", 			$displayname);
+			wachthond($extdebug,3, "birthdate", 			$birthdate);
+
+		}
+
+		if (in_array($groupID, array("139", "190"))) { 						// PART LEID
+			$part_eventid				= $result_leeftijd_part_get[0]['event_id'];
+			$part_eventtypeid			= $result_leeftijd_part_get[0]['event_id.event_type_id'];
+			$part_status_id				= $result_leeftijd_part_get[0]['status_id'];
+			$part_kampkort      		= $result_leeftijd_part_get[0]['PART.PART_welkkamp_kort'];	// wordt nog overschreven met kamp kort uit event info
+
+			wachthond($extdebug,3, "part_kampkort", 		$part_kampkort);
+			wachthond($extdebug,3, "contact_id", 			$contact_id);
+			wachthond($extdebug,3, "part_id", 				$part_id);
+			wachthond($extdebug,3, "part_eventid", 			$part_eventid);
+		}
+
+	   	#####################################################################################################
+		# LET OP !!!! $contact_id hoort niet leeg te zijn
+		#####################################################################################################
+
+		if (empty($contact_id)) {
+			if ($extdebug >= 1) { watchdog('php', '<pre>ERROR: CONTACT INFO LEEG > RETURN</pre>', NULL, WATCHDOG_DEBUG); }
+		   	if ($extdebug >= 1) { watchdog('php', '<pre>*** 1. EINDKAMPLEEFTIJD PROCESS '.$displayname.' [groupID: '.$groupID.'] [op: '.$op.'] [entityID: '.$entityID.'] ***</pre>', null, WATCHDOG_DEBUG); }
+			return; //    if not, get out of here
+		}
+
+		wachthond($extdebug,3, "########################################################################");
+		wachthond($extdebug,1, "### LEEFTIJD - 1.3 BEPAAL STARTDATUM EVENT",  			   $datumditevent);
+		wachthond($extdebug,3, "########################################################################");
+
+		if ($datumditevent) {
+			$start_date = $datumditevent;
+		} elseif (in_array($groupID, array("139", "190"))) { // PART
+			$params_leeftijd_event_get = [
+  				'checkPermissions' => FALSE,
+  				'select' => [
+    				'start_date',
+    				'Event_Kenmerken.Welk_kamp_kort_',
+  				],
+  				'where' => [
+    				['id', '=', $part_eventid],
+  				],
+			];
+
+			wachthond($extdebug,3, "params_leeftijd_event_get", 		$params_leeftijd_event_get);
+			$result_leeftijd_event_get = civicrm_api4('Event','get', $params_leeftijd_event_get);
+			wachthond($extdebug,3, "params_leeftijd_event_get", 		$result_leeftijd_event_get);
+
+			$start_date 	= $result_leeftijd_event_get[0]['start_date'];		
+			$event_kampkort = $result_leeftijd_event_get[0]['Event_Kenmerken.Welk_kamp_kort_'];
+
+			wachthond($extdebug,3, "start_date", 				$start_date);
+			wachthond($extdebug,3, "event_kampkort", 			$event_kampkort);
+
+		} else {
+			$start_date = $datumnextkamp;
+		}
+	}
+
+/*
+	##################################################################################################
+	# DEFINE POSTAL & EMAIL GREETING
+	##################################################################################################
+		if (in_array($groupID, array("139", "190"))) { 	// PART
+			if (in_array($kampkort, array("kk1","kk1","bk1","bk2","tk1","tk2","jk1","jk2")) AND !in_array($part_status_id, $partstatusnot)) { 
+				$email_greeting_id 		= 2; 			// OUDER VERZORGER
+				$communication_style_id = 'formal'; 	// FORMEEL 
+			}
+			if (in_array($kampkort, array("`top"))) { 
+				$email_greeting_id 		= 1; 			// HALLO VOORNAAM
+				$communication_style_id = 'familiar'; 	// INFORMEEL 
+			}
+			if ($part_eventtypeid == 1) {
+				$email_greeting_id 		= 1; 			// HALLO VOORNAAM (LEIDING)
+				$communication_style_id = 'familiar';	// INFORMEEL 
+			}
+		}
+		if (in_array($groupID, array("149", "225"))) { // TAB
+			if ($leeftijd_nextkamp < 18) {
+				$email_greeting_id 		= 2; 			// OUDER VERZORGER
+				$communication_style_id = 'familiar'; 	// INFORMEEL 
+			}
+			if ($leeftijd_nextkamp >= 18) { 
+				$email_greeting_id 		= 1; 			// HALLO VOORNAAM
+				$communication_style_id = 'familiar'; 	// INFORMEEL 
+			}
+			if ($keren_top >= 1) { 
+				$email_greeting_id 		= 1; 			// HALLO VOORNAAM
+				$communication_style_id = 'familiar'; 	// INFORMEEL 
+			}
+			if ($keren_leid >= 1) { 
+				$email_greeting_id 		= 1; 			// HALLO VOORNAAM
+				$communication_style_id = 'familiar'; 	// INFORMEEL 
+			}
+			if ($leeftijd_nextkamp >= 50) { 
+				$email_greeting_id 		= 1; 			// HALLO VOORNAAM
+				$communication_style_id = 'formal'; 	// FORMEEL 
+			}
+		}
+
+//		$params_cont_update['values']['addressee_id']					= $addressee_id;
+//		$params_cont_update['values']['postal_greeting_id']				= $postal_greeting_id;
+		#$params_cont_update['values']['email_greeting_id']				= $email_greeting_id;
+		#$params_cont_update['values']['communication_style_id:name']	= $communication_style_id;
+
+		wachthond($extdebug,3, "addressee_id", 				$addressee_id);
+		wachthond($extdebug,3, "postal_greeting_id", 		$postal_greeting_id);
+		wachthond($extdebug,3, "email_greeting_id", 		$email_greeting_id);
+		wachthond($extdebug,3, "communication_style_id", 	$communication_style_id);
+*/
+		##################################################################################################
+
+}
