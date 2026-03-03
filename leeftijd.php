@@ -22,7 +22,7 @@ require_once 'leeftijd.civix.php';
  */
 function leeftijd_civicrm_diff($job, $birthdate, $vergelijk) {
 
-    $extdebug = 0;
+    $extdebug = 3;
 
     wachthond($extdebug, 1, "########################################################################");
     wachthond($extdebug, 1, "### LEEFTIJD DIFF - BEREKEN DE LEEFTIJD TOV BEPAALDE DATUM",	 "[START]");
@@ -87,7 +87,7 @@ function leeftijd_civicrm_diff($job, $birthdate, $vergelijk) {
 
 function leeftijd_civicrm_validateprofile($profileName)
 {
-    $extdebug = 0;
+    $extdebug = 3;
 
     // Static om log-vervuiling te voorkomen bij multiple validation passes
     static $logged = [];
@@ -108,7 +108,7 @@ function leeftijd_civicrm_validateprofile($profileName)
 
 function leeftijd_civicrm_custom($op, $groupID, $entityID)
 {
-    $extdebug = 0;
+    $extdebug = 3;
 
     if ($op != 'create' && $op != 'edit') {
         wachthond($extdebug, 4, "EXIT: op != create OR op != edit");
@@ -132,7 +132,7 @@ function leeftijd_civicrm_custom($op, $groupID, $entityID)
  */
 function leeftijd_civicrm_customPre(string $op, int $groupID, int $entityID, array &$params): void {
 
-    $extdebug = 0;
+    $extdebug = 3;
     
     // Alleen draaien voor profiel 'Deelname Intern' (ID 271) [PART]
     if (($op != 'create' && $op != 'edit') || $groupID != 271) return;
@@ -243,7 +243,7 @@ function leeftijd_civicrm_customPre(string $op, int $groupID, int $entityID, arr
 
 function leeftijd_configure($job, $groupID, $entityID, $basedate, $array_partditevent = NULL)
 {
-    $extdebug = 0;
+    $extdebug = 3;
     
     wachthond($extdebug, 1, "########################################################################");
     wachthond($extdebug, 1, "### LEEFTIJD CONFIGURE - KAMPLEEFTIJD PROCESS", 				 "[START]");
@@ -510,57 +510,77 @@ function leeftijd_civicrm_criteria($array_partditevent, $leeftijd_ditevent_decim
     wachthond($extdebug, 3, "INPUT criteria_school",   $criteria_school);
     wachthond($extdebug, 3, "INPUT kampkort",          $kampkort);
 
-    // 5. Eindoordeel
-    $criteria_indicatie = 'criteriawijktaf';
+    // --- 5.1 CRITERIA INDICATIE ---
+    // Functioneel: Als een beheerder of een eerdere actie al een indicatie heeft opgeslagen, 
+    // willen we die behouden. Anders laten we hem standaard afwijken.
+    // Technisch: We gebruiken !empty() in plaats van ?? omdat CiviCRM een leeggemaakt veld 
+    if (!empty($part_criteria_indicatie)) {
+        $criteria_indicatie ??= $part_criteria_indicatie;
+        wachthond($extdebug, 3, "STATUS: Bestaande indicatie behouden",     $criteria_indicatie);
+    } else {
+        $criteria_indicatie ??= 'criteriawijktaf';
+        wachthond($extdebug, 3, "STATUS: Geen indicatie, zet default",      $criteria_indicatie);
+    }
+
+    // --- 5.2 CRITERIA OORDEEL ---
+    // Functioneel: Check of er al een handmatig eindoordeel was vastgelegd door een gebruiker.
+    // Zo ja, behoud deze. Zo nee, zet de default status naar 'nog nodig'.
+    if (in_array($part_criteria_oordeel, ['oordeelnietnodig', 'oordeelprima', 'oordeelaangepast', 'oordeelafgewezen'])) {
+        $criteria_oordeel ??= $part_criteria_oordeel;
+        wachthond($extdebug, 3, "STATUS: Handmatig oordeel behouden",       $criteria_oordeel);
+    } else {
+        $criteria_oordeel ??= 'oordeelnognodig';
+        wachthond($extdebug, 3, "STATUS: Geen geldig oordeel, default",     $criteria_oordeel);
+    }
 
     // Check of er al een handmatig eindoordeel was vastgelegd door een gebruiker
     // Zo ja, behoud deze. Zo nee, zet de default status naar 'nog nodig'.
-    if (in_array($part_criteria_oordeel, ['oordeelprima', 'oordeelaangepast', 'oordeelafgewezen'])) {
+    if (in_array($part_criteria_oordeel, ['oordeelnietnodig', 'oordeelprima', 'oordeelaangepast', 'oordeelafgewezen'])) {
         $criteria_oordeel ??= $part_criteria_oordeel;
-        wachthond($extdebug, 4, "STATUS: Handmatig oordeel behouden",       $criteria_oordeel);
+        wachthond($extdebug, 3, "STATUS: Handmatig oordeel behouden",       $criteria_oordeel);
     } else {
         $criteria_oordeel ??= 'oordeelnognodig';
-        wachthond($extdebug, 4, "STATUS: Geen geldig oordeel, default",     $criteria_oordeel);
+        wachthond($extdebug, 3, "STATUS: Geen geldig oordeel, default",     $criteria_oordeel);
     }
 
     // Prima situaties
     if ($criteria_leeftijd == 'prima' && $criteria_school == 'prima') {
         $criteria_indicatie ??= 'criteriaprima';
         $criteria_oordeel   ??= 'oordeelnietnodig';
-        wachthond($extdebug, 4, "BRANCH: Alles prima",                      "Hit");
+        wachthond($extdebug, 3, "BRANCH: Alles prima",                      "Hit");
     } 
     // Marge situaties
     elseif ($criteria_leeftijd == 'marge' || $criteria_school == 'marge') {
         $criteria_indicatie ??= 'binnenmarges';
         $criteria_oordeel   ??= 'oordeelnietnodig';
-        wachthond($extdebug, 4, "BRANCH: Binnen marges",                    "Hit");
+        wachthond($extdebug, 3, "BRANCH: Binnen marges",                    "Hit");
     }
     // Specifieke uitzonderingen voor afwijkingen
     elseif ($criteria_leeftijd == 'afwijkend' && $criteria_school != 'afwijkend') {
         $criteria_indicatie ??= 'leeftijdwijktaf';
-        wachthond($extdebug, 4, "BRANCH: Alleen leeftijd wijkt af",         "Hit");
+        wachthond($extdebug, 3, "BRANCH: Alleen leeftijd wijkt af",         "Hit");
     }
     elseif ($criteria_leeftijd != 'afwijkend' && $criteria_school == 'afwijkend') {
         $criteria_indicatie ??= 'schoolwijktaf';
-        wachthond($extdebug, 4, "BRANCH: Alleen school wijkt af",           "Hit");
+        wachthond($extdebug, 3, "BRANCH: Alleen school wijkt af",           "Hit");
     }
 
     // Extra Logica 3.1, 3.2, 3.3
     if ($criteria_leeftijd == 'marge' AND $criteria_school == 'prima' AND in_array($kampkort, array("kk1","kk2","bk1","bk2","tk1","tk2"))) {
         $criteria_indicatie = 'binnenmarges'; 
         $criteria_oordeel   = 'oordeelnietnodig';
-        wachthond($extdebug, 4, "EXTRA LOGICA: Marge leeftijd specifiek kamp", "Hit");
+        wachthond($extdebug, 3, "EXTRA LOGICA: Marge leeftijd specifiek kamp", "Hit");
     }
     if ($criteria_leeftijd == 'prima' AND $criteria_school == 'marge' AND in_array($kampkort, array("jk1","jk2"))) {
         $criteria_indicatie = 'binnenmarges'; 
         $criteria_oordeel   = 'oordeelnietnodig';
-        wachthond($extdebug, 4, "EXTRA LOGICA: Marge school jongerenkamp",     "Hit");
+        wachthond($extdebug, 3, "EXTRA LOGICA: Marge school jongerenkamp",     "Hit");
     }
     if ($kampkort == 'top' AND $criteria_leeftijd == 'prima') {
         $criteria_school    = 'prima';
         $criteria_indicatie = 'criteriaprima';
         $criteria_oordeel   = 'oordeelnietnodig';
-        wachthond($extdebug, 4, "EXTRA LOGICA: Topkamp leeftijd prima",        "Hit");
+        wachthond($extdebug, 3, "EXTRA LOGICA: Topkamp leeftijd prima",        "Hit");
     }
 
     wachthond($extdebug, 2, "########################################################################");
@@ -637,7 +657,7 @@ function leeftijd_civicrm_criteria($array_partditevent, $leeftijd_ditevent_decim
 
 function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
 
-    $extdebug = 0;
+    $extdebug = 3;
     
     if (!is_array($array_partditevent)) return;
 
@@ -771,12 +791,24 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
     // ==============================================================================================
     
     $updates_part = [];
-    if ($new_status_id           != $ditevent_part_status_id)   $updates_part['status_id']                            = $new_status_id;
-    if ($new_status_label)                                      $updates_part['PART.deelnamestatus:label']            = $new_status_label;
-    if ($new_wachtlijst_erop     !== $part_wachtlijst_erop)     $updates_part['PART_DEEL_INTERN.wachtlijst_erop']     = $new_wachtlijst_erop;
-    if ($new_wachtlijst_eraf     !== $part_wachtlijst_eraf)     $updates_part['PART_DEEL_INTERN.wachtlijst_eraf']     = $new_wachtlijst_eraf;
-    if ($new_criteriacheck_start !== $part_criteriacheck_start) $updates_part['PART_DEEL_INTERN.criteriacheck_start'] = $new_criteriacheck_start;
-    if ($new_criteriacheck_einde !== $part_criteriacheck_einde) $updates_part['PART_DEEL_INTERN.criteriacheck_einde'] = $new_criteriacheck_einde;
+
+    // Update de status en het label indien gewijzigd
+    if ($new_status_id            != $ditevent_part_status_id)  $updates_part['status_id']                  = $new_status_id;
+    if ($new_status_label)                                      $updates_part['PART.deelnamestatus:label']  = $new_status_label;
+
+    // Gebruik de smart helper voor de interne deelname-velden (datums)
+    if ($new_wachtlijst_erop      !== $part_wachtlijst_erop)    {
+        $updates_part['PART_DEEL_INTERN.wachtlijst_erop']     = format_civicrm_smart($new_wachtlijst_erop,     'PART_DEEL_INTERN.wachtlijst_erop');
+    }
+    if ($new_wachtlijst_eraf      !== $part_wachtlijst_eraf)    {
+        $updates_part['PART_DEEL_INTERN.wachtlijst_eraf']     = format_civicrm_smart($new_wachtlijst_eraf,     'PART_DEEL_INTERN.wachtlijst_eraf');
+    }
+    if ($new_criteriacheck_start  !== $part_criteriacheck_start) {
+        $updates_part['PART_DEEL_INTERN.criteriacheck_start'] = format_civicrm_smart($new_criteriacheck_start, 'PART_DEEL_INTERN.criteriacheck_start');
+    }
+    if ($new_criteriacheck_einde  !== $part_criteriacheck_einde) {
+        $updates_part['PART_DEEL_INTERN.criteriacheck_einde'] = format_civicrm_smart($new_criteriacheck_einde, 'PART_DEEL_INTERN.criteriacheck_einde');
+    }
 
     if ($ditevent_part_id && !empty($updates_part)) {
         // ANTI-LOOP SLOTJE VOOR PARTICIPANT
@@ -791,12 +823,12 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
             ];
             
             wachthond($extdebug, 7, 'params_part',              $params_part);
-            $result_part = civicrm_api4('Participant', 'update', $params_part);
+            $result_part = civicrm_api4('Participant','update', $params_part);
             wachthond($extdebug, 9, 'result_part',              $result_part);
 
             wachthond($extdebug, 2, "STATUS UPDATED PART",      "$new_status_id ($new_status_label)");
         } else {
-            wachthond($extdebug, 4, "STATUS UPDATED PART",      "Overgeslagen door anti-loop slotje");
+            wachthond($extdebug, 3, "STATUS UPDATED PART",      "Overgeslagen door anti-loop slotje");
         }
     } else {
         wachthond($extdebug, 3, "STATUS UPDATED PART",      "Geen wijzigingen nodig");
@@ -807,11 +839,19 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
     // ==============================================================================================
     
     $updates_contact = [];
-    if ($new_status_label        !== NULL) $updates_contact['DITJAAR.ditjaar_deelnamestatus']      = $new_status_label;
-    if ($new_wachtlijst_erop     !== NULL) $updates_contact['DITJAAR.ditjaar_wachtlijst_erop']     = $new_wachtlijst_erop;
-    if ($new_wachtlijst_eraf     !== NULL) $updates_contact['DITJAAR.ditjaar_wachtlijst_eraf']     = $new_wachtlijst_eraf;
-    if ($new_criteriacheck_start !== NULL) $updates_contact['DITJAAR.ditjaar_criteriacheck_start'] = $new_criteriacheck_start;
-    if ($new_criteriacheck_einde !== NULL) $updates_contact['DITJAAR.ditjaar_criteriacheck_einde'] = $new_criteriacheck_einde;
+    if ($new_status_label           !== NULL) { $updates_contact['DITJAAR.ditjaar_deelnamestatus:label']    = $new_status_label; }
+    if ($new_wachtlijst_erop        !== NULL) {
+        $updates_contact['DITJAAR.ditjaar_wachtlijst_erop']     = format_civicrm_smart($new_wachtlijst_erop,     'DITJAAR.ditjaar_wachtlijst_erop');
+    }
+    if ($new_wachtlijst_eraf        !== NULL) {
+        $updates_contact['DITJAAR.ditjaar_wachtlijst_eraf']     = format_civicrm_smart($new_wachtlijst_eraf,     'DITJAAR.ditjaar_wachtlijst_eraf');
+    }
+    if ($new_criteriacheck_start    !== NULL) {
+        $updates_contact['DITJAAR.ditjaar_criteriacheck_start'] = format_civicrm_smart($new_criteriacheck_start, 'DITJAAR.ditjaar_criteriacheck_start');
+    }
+    if ($new_criteriacheck_einde    !== NULL) {
+        $updates_contact['DITJAAR.ditjaar_criteriacheck_einde'] = format_civicrm_smart($new_criteriacheck_einde, 'DITJAAR.ditjaar_criteriacheck_einde');
+    }
 
     if ($contact_id && !empty($updates_contact)) {
         // ANTI-LOOP SLOTJE VOOR CONTACT
@@ -833,7 +873,7 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
             $log_status = $new_status_label ?? "Updated";
             wachthond($extdebug, 2, "STATUS UPDATED CONT",      $log_status);
         } else {
-            wachthond($extdebug, 4, "STATUS UPDATED CONT",      "Overgeslagen door anti-loop slotje");
+            wachthond($extdebug, 3, "STATUS UPDATED CONT",      "Overgeslagen door anti-loop slotje");
         }
     } else {
         wachthond($extdebug, 3, "STATUS UPDATED CONT",      "Geen wijzigingen nodig");
