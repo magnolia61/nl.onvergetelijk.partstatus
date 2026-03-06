@@ -22,7 +22,7 @@ require_once 'leeftijd.civix.php';
  */
 function leeftijd_civicrm_diff($job, $birthdate, $vergelijk) {
 
-    $extdebug = 3;
+    $extdebug = 0;
 
     wachthond($extdebug, 1, "########################################################################");
     wachthond($extdebug, 1, "### LEEFTIJD DIFF - BEREKEN DE LEEFTIJD TOV BEPAALDE DATUM",	 "[START]");
@@ -87,7 +87,7 @@ function leeftijd_civicrm_diff($job, $birthdate, $vergelijk) {
 
 function leeftijd_civicrm_validateprofile($profileName)
 {
-    $extdebug = 3;
+    $extdebug = 0;
 
     // Static om log-vervuiling te voorkomen bij multiple validation passes
     static $logged = [];
@@ -474,6 +474,8 @@ function leeftijd_civicrm_criteria($array_partditevent, $leeftijd_ditevent_decim
     if (in_array($kampkort,array("tk1","tk2")) AND in_array($new_groepklas,array("klas_4")))                       { $criteria_school = 'marge'; }
     if (in_array($kampkort,array("jk1","jk2")) AND in_array($new_groepklas,array("klas_2","klas_3")))              { $criteria_school = 'marge'; }
 
+    wachthond($extdebug, 3, "criteria_school",        $criteria_school);
+
     wachthond($extdebug, 2, "########################################################################");
     wachthond($extdebug, 1, "### CRITERIA 3.0 BEOORDELING LEEFTIJD",                      "[LEEFTIJD]");
     wachthond($extdebug, 2, "########################################################################");
@@ -498,6 +500,8 @@ function leeftijd_civicrm_criteria($array_partditevent, $leeftijd_ditevent_decim
     if (in_array($kampkort, array("tk1","tk2")) AND ($leeftijd >= 16.0 AND $leeftijd <= 16.3)) { $criteria_leeftijd = 'marge'; }
     if (in_array($kampkort, array("jk1","jk2")) AND ($leeftijd >= 15.7 AND $leeftijd <  16.0)) { $criteria_leeftijd = 'marge'; }
     if (in_array($kampkort, array("jk1","jk2")) AND ($leeftijd >= 18.0 AND $leeftijd <= 18.3)) { $criteria_leeftijd = 'marge'; }
+
+    wachthond($extdebug, 3, "criteria_leeftijd",        $criteria_leeftijd);
 
     wachthond($extdebug, 2, "########################################################################");
     wachthond($extdebug, 1, "### CRITERIA 5.0 START BEPALING EINDOORDEEL",                 "[OORDEEL]");
@@ -591,51 +595,60 @@ function leeftijd_civicrm_criteria($array_partditevent, $leeftijd_ditevent_decim
     wachthond($extdebug, 2, "FINAL criteria_indicatie",    $criteria_indicatie);
     wachthond($extdebug, 2, "FINAL criteria_oordeel",      $criteria_oordeel);
 
-    // --- UPDATES UITVOEREN IN CRITERIA FUNCTIE ---
+    // Gebruik van een Smart Guard om oneindige lussen te voorkomen, 
+    // maar wel updates toe te staan als de berekende waarden wijzigen.
+    static $processing_criteria = [];
 
-    static $loop_guard_criteria = [];
+    // Unieke vingerafdruk van de huidige berekening
+    $current_state_key = md5($criteria_leeftijd . $criteria_school . $criteria_indicatie . $criteria_oordeel);
 
-    // Update Contact
-    if ($contact_id && !isset($loop_guard_criteria['c_'.$contact_id])) {
-        $loop_guard_criteria['c_'.$contact_id] = true;
+    // 1. Update Contactgegevens (Tab Dit Jaar)
+    if ($contact_id && ($processing_criteria['c_' . $contact_id] ?? '') !== $current_state_key) {
+        
+        $processing_criteria['c_' . $contact_id] = $current_state_key;
 
         $params_contact = [
             'checkPermissions' => FALSE,
-            'reload' => FALSE,
-            'where'  => [['id', '=', $contact_id]],
-            'values' => [
-                'DITJAAR.ditjaar_leeftijd'              => $criteria_leeftijd,
-                'DITJAAR.ditjaar_school'                => $criteria_school,
-                'DITJAAR.ditjaar_criteria_indicatie'    => $criteria_indicatie,
-                'DITJAAR.ditjaar_criteria_oordeel'      => $criteria_oordeel,
+            'reload'           => FALSE,
+            'where'            => [['id', '=', $contact_id]],
+            'values'           => [
+                'DITJAAR.ditjaar_leeftijd'           => $criteria_leeftijd,
+                'DITJAAR.ditjaar_school'             => $criteria_school,
+                'DITJAAR.ditjaar_criteria_indicatie' => $criteria_indicatie,
+                'DITJAAR.ditjaar_criteria_oordeel'   => $criteria_oordeel,
             ]
         ];
         
-        wachthond($extdebug,3, 'params_contact',            $params_contact);        
-        $result_contact = civicrm_api4('Contact', 'update', $params_contact);
-        wachthond($extdebug,9, 'result_contact',            $result_contact);
+        wachthond($extdebug, 3, 'params_contact',            $params_contact);
+        $result_contact = civicrm_api4('Contact', 'update',  $params_contact);
+        wachthond($extdebug, 9, 'result_contact',            $result_contact);
     }
 
-    // Update Participant
-    if ($part_id && !isset($loop_guard_criteria['p_'.$part_id])) {
-        $loop_guard_criteria['p_'.$part_id] = true;
+    // 2. Update Deelnemergegevens (Tab Deelname Intern)
+    if ($part_id && ($processing_criteria['p_' . $part_id] ?? '') !== $current_state_key) {
+        
+        $processing_criteria['p_' . $part_id] = $current_state_key;
 
         $params_part = [
             'checkPermissions' => FALSE,
-            'reload' => FALSE,
-            'where'  => [['id', '=', $part_id]],
-            'values' => [
-                'PART_DEEL_INTERN.criteria_leeftijd'    => $criteria_leeftijd,
-                'PART_DEEL_INTERN.criteria_school'      => $criteria_school,
-                'PART_DEEL_INTERN.criteria_indicatie'   => $criteria_indicatie,
-                'PART_DEEL_INTERN.criteria_oordeel'     => $criteria_oordeel,
+            'reload'           => FALSE,
+            'where'            => [['id', '=', $part_id]],
+            'values'           => [
+                'PART_DEEL_INTERN.criteria_leeftijd'  => $criteria_leeftijd,
+                'PART_DEEL_INTERN.criteria_school'    => $criteria_school,
+                'PART_DEEL_INTERN.criteria_indicatie' => $criteria_indicatie,
+                'PART_DEEL_INTERN.criteria_oordeel'   => $criteria_oordeel,
             ]
         ];
-        if ($new_groepklas) $params_part['values']['PART_DEEL.Groep_klas'] = $new_groepklas;
+        
+        // Optioneel: Herstelde Groep/Klas opslaan
+        if ($new_groepklas) {
+            $params_part['values']['PART_DEEL.Groep_klas'] = $new_groepklas;
+        }
 
-        wachthond($extdebug,3, 'params_part',               $params_part);
-        $result_part = civicrm_api4('Participant','update', $params_part);
-        wachthond($extdebug,9, 'result_part',               $result_part);
+        wachthond($extdebug, 3, 'params_part',               $params_part);
+        $result_part = civicrm_api4('Participant', 'update', $params_part);
+        wachthond($extdebug, 9, 'result_part',               $result_part);
     }
 
     $leeftijd_criteria_array = array(
@@ -694,9 +707,13 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
     wachthond($extdebug, 3, 'part_criteriacheck_einde',  $part_criteriacheck_einde);
 
     // Bepaal actuele criteria (nieuw berekend indien meegegeven, anders behoud bestaande)
+    $actueel_criteria_leeftijd  = $array_criteria['criteria_leeftijd']  ?? $part_criteria_leeftijd;
+    $actueel_criteria_school    = $array_criteria['criteria_school']    ?? $part_criteria_school;
     $actueel_criteria_indicatie = $array_criteria['criteria_indicatie'] ?? $part_criteria_indicatie;
     $actueel_criteria_oordeel   = $array_criteria['criteria_oordeel']   ?? $part_criteria_oordeel;
 
+    wachthond($extdebug, 2, 'actueel_criteria_leeftijd',    $actueel_criteria_leeftijd);
+    wachthond($extdebug, 2, 'actueel_criteria_school',      $actueel_criteria_school);
     wachthond($extdebug, 2, 'actueel_criteria_indicatie',   $actueel_criteria_indicatie);
     wachthond($extdebug, 2, 'actueel_criteria_oordeel',     $actueel_criteria_oordeel);    
 
@@ -719,6 +736,7 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
 
     // Correctie van onbekende status (0, 5, 6) naar geregistreerd of wacht op goedkeuring
     if (in_array($ditevent_part_status_id, [0, 5, 6]) && $ditevent_part_rol == 'deelnemer' && empty($part_wachtlijst_erop)) {
+
         if ($actueel_criteria_indicatie == 'criteriaprima') {
             $new_status_id              = 1; // Registered
             $new_status_label           = 'Bevestigd';
@@ -811,10 +829,14 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
     }
 
     if ($ditevent_part_id && !empty($updates_part)) {
-        // ANTI-LOOP SLOTJE VOOR PARTICIPANT
-        static $loop_guard_status_part = [];
-        if (!isset($loop_guard_status_part[$ditevent_part_id])) {
-            $loop_guard_status_part[$ditevent_part_id] = true; // Deur op slot
+        
+        // SMART GUARD: Voorkomt lussen, maar staat updates toe als de data (bijv. status) wijzigt.
+        static $processing_status = [];
+        $part_state_key           = md5(serialize($updates_part));
+
+        if (($processing_status['p_' . $ditevent_part_id] ?? '') !== $part_state_key) {
+            
+            $processing_status['p_' . $ditevent_part_id] = $part_state_key;
 
             $params_part = [
                 'checkPermissions' => FALSE,
@@ -822,16 +844,14 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
                 'values'           => $updates_part,
             ];
             
-            wachthond($extdebug, 7, 'params_part',              $params_part);
-            $result_part = civicrm_api4('Participant','update', $params_part);
-            wachthond($extdebug, 9, 'result_part',              $result_part);
+            wachthond($extdebug, 7, 'params_part',               $params_part);
+            $result_part = civicrm_api4('Participant', 'update', $params_part);
+            wachthond($extdebug, 9, 'result_part',               $result_part);
 
-            wachthond($extdebug, 2, "STATUS UPDATED PART",      "$new_status_id ($new_status_label)");
+            wachthond($extdebug, 2, "STATUS UPDATED PART",       "$new_status_id ($new_status_label)");
         } else {
-            wachthond($extdebug, 3, "STATUS UPDATED PART",      "Overgeslagen door anti-loop slotje");
+            wachthond($extdebug, 3, "STATUS UPDATED PART",       "Overgeslagen (Smart Guard): Geen nieuwe wijzigingen");
         }
-    } else {
-        wachthond($extdebug, 3, "STATUS UPDATED PART",      "Geen wijzigingen nodig");
     }
 
     // ==============================================================================================
@@ -854,10 +874,13 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
     }
 
     if ($contact_id && !empty($updates_contact)) {
-        // ANTI-LOOP SLOTJE VOOR CONTACT
-        static $loop_guard_status_cont = [];
-        if (!isset($loop_guard_status_cont[$contact_id])) {
-            $loop_guard_status_cont[$contact_id] = true; // Deur op slot
+        
+        // SMART GUARD: Gebruikt dezelfde static array voor consistentie.
+        $cont_state_key = md5(serialize($updates_contact));
+
+        if (($processing_status['c_' . $contact_id] ?? '') !== $cont_state_key) {
+            
+            $processing_status['c_' . $contact_id] = $cont_state_key;
 
             $params_contact = [
                 'checkPermissions' => FALSE,
@@ -866,17 +889,15 @@ function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
                 'values'           => $updates_contact,
             ];
             
-            wachthond($extdebug, 7, 'params_contact',           $params_contact);
-            $result_contact = civicrm_api4('Contact', 'update', $params_contact);
-            wachthond($extdebug, 9, 'result_contact',           $result_contact);
+            wachthond($extdebug, 7, 'params_contact',            $params_contact);
+            $result_contact = civicrm_api4('Contact', 'update',  $params_contact);
+            wachthond($extdebug, 9, 'result_contact',            $result_contact);
 
             $log_status = $new_status_label ?? "Updated";
-            wachthond($extdebug, 2, "STATUS UPDATED CONT",      $log_status);
+            wachthond($extdebug, 2, "STATUS UPDATED CONT",       $log_status);
         } else {
-            wachthond($extdebug, 3, "STATUS UPDATED CONT",      "Overgeslagen door anti-loop slotje");
+            wachthond($extdebug, 3, "STATUS UPDATED CONT",       "Overgeslagen (Smart Guard): Geen nieuwe wijzigingen");
         }
-    } else {
-        wachthond($extdebug, 3, "STATUS UPDATED CONT",      "Geen wijzigingen nodig");
     }
 
     return [
