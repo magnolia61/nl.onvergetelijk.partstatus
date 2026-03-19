@@ -108,7 +108,7 @@ function leeftijd_civicrm_validateprofile($profileName)
 
 function leeftijd_civicrm_custom($op, $groupID, $entityID)
 {
-    $extdebug = 3;
+    $extdebug = 0;
 
     if ($op != 'create' && $op != 'edit') {
         wachthond($extdebug, 4, "EXIT: op != create OR op != edit");
@@ -132,7 +132,7 @@ function leeftijd_civicrm_custom($op, $groupID, $entityID)
  */
 function leeftijd_civicrm_customPre(string $op, int $groupID, int $entityID, array &$params): void {
 
-    $extdebug = 3;
+    $extdebug = 0;
     
     // Alleen draaien voor profiel 'Deelname Intern' (ID 271) [PART]
     if (($op != 'create' && $op != 'edit') || $groupID != 271) return;
@@ -243,7 +243,7 @@ function leeftijd_civicrm_customPre(string $op, int $groupID, int $entityID, arr
 
 function leeftijd_configure($job, $groupID, $entityID, $basedate, $array_partditevent = NULL)
 {
-    $extdebug = 3;
+    $extdebug = 0;
     
     wachthond($extdebug, 1, "########################################################################");
     wachthond($extdebug, 1, "### LEEFTIJD CONFIGURE - KAMPLEEFTIJD PROCESS", 				 "[START]");
@@ -384,7 +384,7 @@ function leeftijd_configure($job, $groupID, $entityID, $basedate, $array_partdit
 
 function leeftijd_civicrm_criteria($array_partditevent, $leeftijd_ditevent_decimalen)
 {
-    $extdebug = 3;
+    $extdebug = 0;
     wachthond($extdebug, 4, 'leeftijd_ditevent_decimalen', $leeftijd_ditevent_decimalen);
 
     if (empty($array_partditevent)) return;
@@ -670,7 +670,7 @@ function leeftijd_civicrm_criteria($array_partditevent, $leeftijd_ditevent_decim
 
 function leeftijd_civicrm_status($array_partditevent, $array_criteria = NULL) {
 
-    $extdebug = 3;
+    $extdebug = 0;
     
     if (!is_array($array_partditevent)) return;
 
