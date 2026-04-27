@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <extension key="nl.onvergetelijk.partstatus" type="module">
   <file>partstatus</file>
-  <name>Onvergetelijke Zomerkampen - Partstatus</name>
-  <description>Deze extensie verwerkt de participant status obv leeftijd en criteria</description>
+  <name>Onvergetelijk - Partstatus</name>
+  <description>Berekent participant-status op basis van leeftijd en criteria</description>
   <license>AGPL-3.0</license>
   <maintainer>
     <author>Richard van Oosterhout</author>
@@ -14,13 +14,13 @@
     <url desc="Support">https://www.onvergetelijk.nl</url>
     <url desc="Licensing">http://www.gnu.org/licenses/agpl-3.0.html</url>
   </urls>
-  <releaseDate>2026-03-01</releaseDate>
-  <version>2.0.0</version>
+  <releaseDate>2026-04-27</releaseDate>
+  <version>3.0.0</version>
   <develStage>stable</develStage>
   <compatibility>
-    <ver>6.11</ver>
+    <ver>6.13</ver>
   </compatibility>
-  <comments>This module extension is specific to the Participant Status Lifecycle</comments>
+  <comments>Onderdeel van de Onvergetelijk-extensie-suite voor Stichting Onvergetelijke Zomerkampen. Compatibel met CiviCRM 6.13, PHP 8.4 en Smarty 5.</comments>
   <civix>
     <namespace>CRM/Partstatus</namespace>
     <format>23.02.1</format>
