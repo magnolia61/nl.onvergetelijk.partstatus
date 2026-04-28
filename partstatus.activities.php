@@ -15,7 +15,7 @@
  */
 function partstatus_log_activity($part_id, $contact_id, $old_status_id, $new_status_id, $ctx) {
 
-    $extdebug   = 3;
+    $extdebug   = 'partstatus.post'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
     $apidebug   = FALSE;
 
     wachthond($extdebug, 2, "########################################################################");

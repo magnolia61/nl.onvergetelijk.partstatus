@@ -18,7 +18,7 @@
  */
 function partstatus_configure($part_id, $array_part = NULL, $array_criteria = NULL, $context = 'default') {
     
-    $extdebug = 0; // Zet het debug-niveau op 1 (kan verhoogd worden naar 3 of 4 voor details)
+    $extdebug = 'partstatus.sync'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
 
     if (empty($part_id)) { // Veiligheidscheck: Zonder Participant ID kunnen we niks opslaan
         wachthond($extdebug, 1, "PARTSTATUS ERROR ($context)", "Geen PID ontvangen. Sync afgebroken."); 

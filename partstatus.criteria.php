@@ -17,7 +17,7 @@
  */
 function partstatus_criteria($part_id, $array_part = NULL, $leeftijd_dec = NULL) {
 	
-	$extdebug = 0; // Zet op 3 of 4 als je de output van de logica wilt zien in Watchdog
+	$extdebug = 'partstatus.criteria'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
 
 	wachthond($extdebug, 2, "########################################################################");
 	wachthond($extdebug, 1, "### PARTSTATUS CRITERIA 1.0 - DATA VERZAMELEN",			     "[START]");

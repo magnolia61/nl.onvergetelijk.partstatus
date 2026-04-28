@@ -17,7 +17,7 @@
  */
 function partstatus_evaluate_wachtlijst($part_id, $array_part = NULL, $array_criteria = NULL) { // Definieer de functie met 1 verplichte en 2 optionele parameters
 	
-	$extdebug = 0;
+	$extdebug = 'partstatus.wachtlijst'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
 
 	if (empty($array_part) && $part_id) { 				// Controleer of de participant data ontbreekt, maar er wél een participant ID is
 		if (function_exists('base_pid2part')) { 		// Controleer voor de zekerheid of de externe ophaal-functie bestaat

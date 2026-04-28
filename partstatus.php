@@ -109,7 +109,7 @@ function partstatus_get_field_map_contact(): array {
  */
 function partstatus_civicrm_customPre($op, $groupID, $entityID, &$params) {
 
-    $extdebug = 0; // Zet op 3 voor details in Watchdog
+    $extdebug = 'partstatus.custompre'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
     
     // FILTER: Alleen draaien voor profiel 'part deel intern' (Groep ID 271) bij aanmaken of bewerken
     if (($op != 'create' && $op != 'edit') || $groupID != 271) return;
@@ -237,7 +237,7 @@ function partstatus_getset_old_status($action, $part_id = NULL, $status_id = NUL
  */
 function partstatus_civicrm_pre($op, $objectName, $id, &$params) {
 
-    $extdebug = 0;
+    $extdebug = 'partstatus.pre'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
 
     // =======================================================================================
     // FILTER: Sluiswachter - Alleen doorlaten als het een Participant status-update is
@@ -323,7 +323,7 @@ function partstatus_civicrm_pre($op, $objectName, $id, &$params) {
  */
 function partstatus_civicrm_post($op, $objectName, $objectId, &$objectRef) {
 
-    $extdebug = 3;
+    $extdebug = 'partstatus.post'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
 
     if ($objectName == 'Participant' && $op == 'edit') {
         

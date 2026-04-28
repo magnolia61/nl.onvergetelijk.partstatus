@@ -21,7 +21,7 @@
  */
 function partstatus_leeftijd_diff($job, $birthdate, $vergelijk) {
 
-	$extdebug = 0; // Zet het debug-niveau op 1 (verhoog naar 3 voor RAM-cache details)
+	$extdebug = 'partstatus.leeftijd'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
 
 	wachthond($extdebug, 2, "########################################################################");
 	wachthond($extdebug, 2, "### PARTSTATUS LEEFTIJD 1.0 - CACHE & VALIDATIE",				  "[$job]");
@@ -96,7 +96,7 @@ function partstatus_leeftijd_diff($job, $birthdate, $vergelijk) {
  */
 function partstatus_leeftijd_configure($array_part = NULL, $basedate = NULL, $groupID = NULL, $job = 'event') {
 
-	$extdebug = 0;
+	$extdebug = 'partstatus.leeftijd'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
 
 	wachthond($extdebug, 2, "########################################################################");
 	wachthond($extdebug, 1, "### PARTSTATUS AGE 1.0 - DATA & DATUMS VERZAMELEN",			 "[START]");
