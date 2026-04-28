@@ -17,11 +17,11 @@
  */
 function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = NULL) { // Definieer de functie met 1 verplichte en 2 optionele parameters
 
-    $extdebug = 0; // Zet het debug-niveau op 3 (vrij gedetailleerd) zoals in je originele instelling
+    $ch = 'partstatus.sync'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.php
 
-    wachthond($extdebug, 2, "########################################################################");
-    wachthond($extdebug, 1, "### PARTSTATUS STATUS 1.0 - DATA VERZAMELEN",                   "[START]");
-    wachthond($extdebug, 2, "########################################################################");
+    wachthond($ch, 2, "########################################################################");
+    wachthond($ch, 1, "### PARTSTATUS STATUS 1.0 - DATA VERZAMELEN",                   "[START]");
+    wachthond($ch, 2, "########################################################################");
 
     /*
      * SAMENVATTING SECTIE 1.0:
@@ -33,7 +33,7 @@ function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = 
 
     // STAP A: Zorg dat we basis participantgegevens hebben
     if (empty($array_part) && $part_id) {
-        wachthond($extdebug, 3, "Geen pre-data meegegeven. Laden via base_pid2part...",             "[LAZY LOAD]");
+        wachthond($ch, 3, "Geen pre-data meegegeven. Laden via base_pid2part...",             "[LAZY LOAD]");
         if (function_exists('base_pid2part')) {
             $array_part = base_pid2part($part_id) ?: [];
         }
@@ -44,19 +44,19 @@ function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = 
         $target_cid = $array_part['contact_id'] ?? NULL;
         
         if ($target_cid && function_exists('base_cid2cont')) {
-            wachthond($extdebug, 3, "Birth_date ontbreekt in dataset. Ophalen via base_cid2cont...", "[REPAIR]");
+            wachthond($ch, 3, "Birth_date ontbreekt in dataset. Ophalen via base_cid2cont...", "[REPAIR]");
             $contact_data = base_cid2cont($target_cid);
             $array_part['birth_date'] = $contact_data['birth_date'] ?? NULL;
             
-            wachthond($extdebug, 4, "Geboortedatum succesvol binnengehaald", "[" . ($array_part['birth_date'] ?? 'NULL') . "]");
+            wachthond($ch, 4, "Geboortedatum succesvol binnengehaald", "[" . ($array_part['birth_date'] ?? 'NULL') . "]");
         }
     } else {
-        wachthond($extdebug, 4, "Pre-data is aanwezig en birth_date is bekend", "[OK]");
+        wachthond($ch, 4, "Pre-data is aanwezig en birth_date is bekend", "[OK]");
     }
 
     // Finale check: zonder deze data kunnen we niet betrouwbaar consolideren
     if (empty($array_part)) {
-        wachthond($extdebug, 1, "!!! FATAL ERROR !!! Geen participant data gevonden voor PID", "[$part_id]");
+        wachthond($ch, 1, "!!! FATAL ERROR !!! Geen participant data gevonden voor PID", "[$part_id]");
         return NULL;
     }
 
@@ -66,11 +66,11 @@ function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = 
     $birth_date     = $array_part['birth_date']     ?? NULL;                // Geboortedatum (belangrijk voor leeftijdsberekening)
     $new_groepklas  = $array_part['groepklas']      ?? NULL;                // Gecorrigeerde groep/klas variabele
 
-    wachthond($extdebug, 3, "Input voor rekenaar: Geboortedatum: $birth_date | Groep: $new_groepklas", "[READY]");
+    wachthond($ch, 3, "Input voor rekenaar: Geboortedatum: $birth_date | Groep: $new_groepklas", "[READY]");
 
-    wachthond($extdebug, 2, "########################################################################");
-    wachthond($extdebug, 1, "### PARTSTATUS STATUS 2.0 - LEEFTIJDEN BEREKENEN",           "[LEEFTIJD]");
-    wachthond($extdebug, 2, "########################################################################");
+    wachthond($ch, 2, "########################################################################");
+    wachthond($ch, 1, "### PARTSTATUS STATUS 2.0 - LEEFTIJDEN BEREKENEN",           "[LEEFTIJD]");
+    wachthond($ch, 2, "########################################################################");
 
     /*
      * SAMENVATTING SECTIE 2.0:
@@ -87,13 +87,13 @@ function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = 
     $age_next   = $ages['next'];
 
     // Log de uitkomsten van de leeftijdsberekeningen
-    wachthond($extdebug, 4, "Leeftijd Vandaag",     $age_today['leeftijd_decimalen'] ?? 'Onbekend');
-    wachthond($extdebug, 4, "Leeftijd Dit Event",   $age_event['leeftijd_decimalen'] ?? 'Onbekend');
-    wachthond($extdebug, 4, "Leeftijd Next Kamp",   $age_next['leeftijd_decimalen']  ?? 'Onbekend');
+    wachthond($ch, 4, "Leeftijd Vandaag",     $age_today['leeftijd_decimalen'] ?? 'Onbekend');
+    wachthond($ch, 4, "Leeftijd Dit Event",   $age_event['leeftijd_decimalen'] ?? 'Onbekend');
+    wachthond($ch, 4, "Leeftijd Next Kamp",   $age_next['leeftijd_decimalen']  ?? 'Onbekend');
 
-    wachthond($extdebug, 2, "########################################################################");
-    wachthond($extdebug, 1, "### PARTSTATUS STATUS 3.0 - CRITERIA EVALUATIE",             "[CRITERIA]");
-    wachthond($extdebug, 2, "########################################################################");
+    wachthond($ch, 2, "########################################################################");
+    wachthond($ch, 1, "### PARTSTATUS STATUS 3.0 - CRITERIA EVALUATIE",             "[CRITERIA]");
+    wachthond($ch, 2, "########################################################################");
 
     /*
      * SAMENVATTING SECTIE 3.0:
@@ -103,18 +103,18 @@ function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = 
      */
 
     if (empty($array_criteria)) { // Als de criteria nog niet berekend of meegegeven waren...
-        wachthond($extdebug, 3, "Geen actuele criteria ontvangen. Berekenen via partstatus_criteria()..."); // Log actie
+        wachthond($ch, 3, "Geen actuele criteria ontvangen. Berekenen via partstatus_criteria()..."); // Log actie
         // Bereken verse criteria, gebruikmakend van de zojuist berekende 'Leeftijd Dit Event'
         $array_criteria = partstatus_criteria($part_id, $array_part, $age_event['leeftijd_decimalen'] ?? NULL); 
-        wachthond($extdebug, 4, "Resultaat Indicatie",  $array_criteria['criteria_indicatie'] ?? 'NULL'); // Log uitkomst indicatie
-        wachthond($extdebug, 4, "Resultaat Oordeel",    $array_criteria['criteria_oordeel']   ?? 'NULL'); // Log uitkomst oordeel
+        wachthond($ch, 4, "Resultaat Indicatie",  $array_criteria['criteria_indicatie'] ?? 'NULL'); // Log uitkomst indicatie
+        wachthond($ch, 4, "Resultaat Oordeel",    $array_criteria['criteria_oordeel']   ?? 'NULL'); // Log uitkomst oordeel
     } else { // Als we de criteria wél al hadden gekregen...
-        wachthond($extdebug, 4, "Overgeslagen (Actuele criteria waren al meegegeven door aanroeper)"); // Log dat we efficiënt overslaan
+        wachthond($ch, 4, "Overgeslagen (Actuele criteria waren al meegegeven door aanroeper)"); // Log dat we efficiënt overslaan
     } // Einde criteria bepaling
 
-    wachthond($extdebug, 2, "########################################################################");
-    wachthond($extdebug, 1, "### PARTSTATUS STATUS 4.1 - STATUS & WACHTLIJST LOGICA",       "[STATUS]");
-    wachthond($extdebug, 2, "########################################################################");
+    wachthond($ch, 2, "########################################################################");
+    wachthond($ch, 1, "### PARTSTATUS STATUS 4.1 - STATUS & WACHTLIJST LOGICA",       "[STATUS]");
+    wachthond($ch, 2, "########################################################################");
 
     /*
      * SAMENVATTING SECTIE 4.1:
@@ -128,24 +128,24 @@ function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = 
     $oordeel        = $array_criteria['criteria_oordeel']   ?? $array_part['criteria_oordeel'] ?? NULL; // Wat is het actuele oordeel?
 
     if ($part_rol == 'leiding' && $old_status_id != 4) { // Als dit leiding is, én ze zijn niet geannuleerd (4)...
-        wachthond($extdebug, 3, "Rol is 'Leiding' en niet geannuleerd. Wachtlijst overgeslagen."); // Log de bypass
+        wachthond($ch, 3, "Rol is 'Leiding' en niet geannuleerd. Wachtlijst overgeslagen."); // Log de bypass
         $res_status = [ // Zet de status array hard op 'Bevestigd' en leeg de wachtlijstdatums
             'status_id'     => 1, 
             'status_label'  => 'Bevestigd', 
             'wl_erop'       => NULL, 
             'wl_eraf'       => NULL
         ];
-        wachthond($extdebug, 4, "Resultaat", "Direct Bevestigd (Status 1)"); // Log resultaat
+        wachthond($ch, 4, "Resultaat", "Direct Bevestigd (Status 1)"); // Log resultaat
     } else { // In alle andere gevallen (reguliere deelnemer, of wel geannuleerd)...
-        wachthond($extdebug, 3, "Rol is 'Deelnemer'. Delegeren naar partstatus_evaluate_wachtlijst()..."); // Log de delegatie
+        wachthond($ch, 3, "Rol is 'Deelnemer'. Delegeren naar partstatus_evaluate_wachtlijst()..."); // Log de delegatie
         // DELEGATIE: We geven de verse $array_criteria mee, zodat een "Oordeel OK" direct wordt opgepakt door de motor!
         $res_status = partstatus_evaluate_wachtlijst($part_id, $array_part, $array_criteria);
-        wachthond($extdebug, 4, "Resultaat", "Status " . $res_status['status_id'] . " toegewezen door wachtlijst motor."); // Log uitkomst motor
+        wachthond($ch, 4, "Resultaat", "Status " . $res_status['status_id'] . " toegewezen door wachtlijst motor."); // Log uitkomst motor
     }   // Einde statusbepaling
 
-    wachthond($extdebug, 2, "########################################################################");
-    wachthond($extdebug, 1, "### PARTSTATUS STATUS 4.2 - CRITERIACHECK DATUM BEHEER",       "[DATUMS]");
-    wachthond($extdebug, 2, "########################################################################");
+    wachthond($ch, 2, "########################################################################");
+    wachthond($ch, 1, "### PARTSTATUS STATUS 4.2 - CRITERIACHECK DATUM BEHEER",       "[DATUMS]");
+    wachthond($ch, 2, "########################################################################");
 
     /*
      * SAMENVATTING SECTIE 4.2:
@@ -160,33 +160,33 @@ function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = 
     if ($res_status['status_id'] != 7) { // Als iemand (nog) NIET op de wachtlijst (7) staat...
         
         if ($oordeel == 'oordeelnietnodig') { // Indien een beheerder het oordeel handmatig op 'niet nodig' heeft gezet...
-            wachthond($extdebug, 3, "Actie", "Oordeel niet (meer) nodig. Wis actieve check-datums."); // Log de actie
+            wachthond($ch, 3, "Actie", "Oordeel niet (meer) nodig. Wis actieve check-datums."); // Log de actie
             $check_start = ""; // Maak startdatum leeg
             $check_einde = ""; // Maak einddatum leeg
         } 
         elseif ($oordeel == 'oordeelnognodig' || $res_status['status_id'] == 8) { // Als er wél een oordeel nodig is of we staan al op status 8...
             if (empty($check_start)) {              // Check of een startdatum ontbreekt...
-                wachthond($extdebug, 3, "Actie", "Status 8 of Oordeel nodig, maar geen startdatum. Gebruik registratiedatum."); // Log de actie
+                wachthond($ch, 3, "Actie", "Status 8 of Oordeel nodig, maar geen startdatum. Gebruik registratiedatum."); // Log de actie
                 $check_start = $register_date;      // ...vul in met registratiedatum
             } else {                                // Als er al wel een startdatum was...
-                wachthond($extdebug, 4, "Actie", "Startdatum reeds aanwezig ($check_start)."); // Log het behoud
+                wachthond($ch, 4, "Actie", "Startdatum reeds aanwezig ($check_start)."); // Log het behoud
             }
         } // Einde sub-check
         
         // FUNCTIONEEL BEHOUD: Wanneer de check wordt afgerond (einddatum gezet) bij een record op status 8,
         // hergebruiken we de uitkomst (1 of 9) die res_status (de wachtlijst motor) hierboven zojuist veilig heeft berekend.
         if (!empty($check_einde) && $old_status_id == 8) {          // Controleer op de statusverandering
-            wachthond($extdebug, 3, "Actie", "Oordeel afgerond vanuit Status 8. Behoud berekende doorstroom-status."); // Log de transitie
+            wachthond($ch, 3, "Actie", "Oordeel afgerond vanuit Status 8. Behoud berekende doorstroom-status."); // Log de transitie
             $res_status['status_id'] = $res_status['status_id'];    // Veilige toewijzing voor leesbaarheid
         } // Einde transitie-check
 
     } else { // Als de deelnemer WEL op de wachtlijst (7) staat...
-        wachthond($extdebug, 4, "Actie", "Overgeslagen. Datumbeheer criteriacheck niet actief zolang status Wachtlijst (7) is.");
+        wachthond($ch, 4, "Actie", "Overgeslagen. Datumbeheer criteriacheck niet actief zolang status Wachtlijst (7) is.");
     } // Einde grote if-lus
 
-    wachthond($extdebug, 2, "########################################################################");
-    wachthond($extdebug, 1, "### PARTSTATUS STATUS 5.0 - CONSOLIDATIE VOLTOOID",             "[EINDE]");
-    wachthond($extdebug, 2, "########################################################################");
+    wachthond($ch, 2, "########################################################################");
+    wachthond($ch, 1, "### PARTSTATUS STATUS 5.0 - CONSOLIDATIE VOLTOOID",             "[EINDE]");
+    wachthond($ch, 2, "########################################################################");
 
     /*
      * SAMENVATTING SECTIE 5.0:
