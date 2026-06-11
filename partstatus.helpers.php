@@ -68,15 +68,28 @@ function partstatus_configure($part_id, $array_part = NULL, $array_criteria = NU
 
     $is_criteria_event      = in_array($event_type_id, [11, 12, 13, 14, 21, 22, 23, 24, 33]);
 
-    // 2. CIVICRM WAARDE MAPPING (Zorg dat de rechterkant matcht met de CiviCRM values)
+    // 2. CIVICRM WAARDE MAPPING (Exact gesynchroniseerd met actieve CiviCRM opties)
     $civicrm_map = [
+        // Basis beoordelingen (interne waarden)
         'prima'             => 'prima',
         'afwijkend'         => 'afwijkend',
-        'schoolwijkt'       => 'schoolwijkt',
-        'schoolwijktaf'     => 'schoolwijktaf',
+        'marge'             => 'marge',
+
+        // Criteria Indicatie (Actieve opties, 'waarschijnlijk' genegeerd)
+        'noggeenindicatie'  => 'noggeenindicatie',
         'criteriaprima'     => 'criteriaprima',
-        'oordeelprima'      => 'oordeelprima',
+        'binnenmarges'      => 'binnenmarges',
+        'leeftijdwijktaf'   => 'leeftijdwijktaf',
+        'schoolwijktaf'     => 'schoolwijktaf',
+        'criteriawijktaf'   => 'criteriawijktaf',
+
+        // Oordeel (Alleen de ingeschakelde opties)
         'oordeelnietnodig'  => 'oordeelnietnodig',
+        'oordeelnognodig'   => 'oordeelnognodig',
+        'oordeelprima'      => 'oordeelprima',
+        'buitencriteria'    => 'buitencriteria',
+
+        // Systeem fallback
         'onbekend'          => ''
     ];
 
@@ -169,8 +182,8 @@ function partstatus_configure($part_id, $array_part = NULL, $array_criteria = NU
 
         // SMART GUARD: Bestaat de variabele EN is hij anders dan wat we al in de database hadden?
         if (isset($$var_new) && $$var_new !== ($old_data[$api_name] ?? 'NULL_CHECK')) {
-            // Gebruik format_civicrm_smart om te zorgen dat datums en decimalen correct geformatteerd de DB in gaan
-            $inject_part[$api_name] = format_civicrm_smart($$var_new, $api_name);
+            // Ruwe waarde meegeven; base_api_wrapper formatteert zelf via format_civicrm_smart
+            $inject_part[$api_name] = $$var_new;
         }
     }
 

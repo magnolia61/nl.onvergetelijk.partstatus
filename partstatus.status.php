@@ -47,8 +47,16 @@ function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = 
             wachthond($extdebug, 3, "Birth_date ontbreekt in dataset. Ophalen via base_cid2cont...", "[REPAIR]");
             $contact_data = base_cid2cont($target_cid);
             $array_part['birth_date'] = $contact_data['birth_date'] ?? NULL;
-            
-            wachthond($extdebug, 4, "Geboortedatum succesvol binnengehaald", "[" . ($array_part['birth_date'] ?? 'NULL') . "]");
+
+            if (!empty($array_part['birth_date'])) {
+                wachthond($extdebug, 3, "Geboortedatum opgehaald",                "[" . $array_part['birth_date'] . "]");
+            } else {
+                // GUARD: zonder geboortedatum is leeftijdsberekening onmogelijk → stop hier.
+                // Doorgaan zou criteria_leeftijd = 'onbekend' of 'afwijkend' opleveren
+                // op basis van leeftijd 0, wat foutieve mails en statuswijzigingen veroorzaakt.
+                wachthond($extdebug, 1, "!!! ABORT !!! birth_date ontbreekt na base_cid2cont voor CID: $target_cid. Criteria-berekening geannuleerd.", "[NO_BIRTHDATE]");
+                return NULL;
+            }
         }
     } else {
         wachthond($extdebug, 4, "Pre-data is aanwezig en birth_date is bekend", "[OK]");

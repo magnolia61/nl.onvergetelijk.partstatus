@@ -136,9 +136,10 @@ function partstatus_leeftijd_configure($array_part = NULL, $basedate = NULL, $gr
 				  : $age_next;
 
 		if ($source) {
-			$inject_cont['WERVING.nextkamp_decimalen'] = format_civicrm_smart($source['leeftijd_decimalen'], 'WERVING.nextkamp_decimalen');
-			$inject_cont['WERVING.nextkamp_rondjaren'] = format_civicrm_smart($source['leeftijd_rondjaren'], 'WERVING.nextkamp_rondjaren');
-			$inject_cont['WERVING.nextkamp_rondmaand'] = format_civicrm_smart($source['leeftijd_rondmaand'], 'WERVING.nextkamp_rondmaand');
+			// Ruwe waarden meegeven; base_api_wrapper formatteert zelf
+			$inject_cont['WERVING.nextkamp_decimalen'] = $source['leeftijd_decimalen'];
+			$inject_cont['WERVING.nextkamp_rondjaren'] = $source['leeftijd_rondjaren'];
+			$inject_cont['WERVING.nextkamp_rondmaand'] = $source['leeftijd_rondmaand'];
 			wachthond($extdebug, 4, "Contact WERVING velden succesvol geprepareerd", "[OK]");
 		}
 	} else {
@@ -146,7 +147,8 @@ function partstatus_leeftijd_configure($array_part = NULL, $basedate = NULL, $gr
 	}
 
 	if ($job == 'event' && $groupID !== NULL && in_array($groupID, ["139", "190"]) && $ditevent_part_id) {
-		$inject_part['PART.nextkamp_decimalen'] = format_civicrm_smart($age_event['leeftijd_decimalen'] ?? 0, 'PART.nextkamp_decimalen');
+		// Ruwe waarde meegeven; base_api_wrapper formatteert zelf
+		$inject_part['PART.nextkamp_decimalen'] = $age_event['leeftijd_decimalen'] ?? 0;
 		wachthond($extdebug, 4, "Participant PART velden succesvol geprepareerd", "[OK]");
 	} else {
 		wachthond($extdebug, 4, "Participant update overgeslagen (Profiel/Job matcht niet)", "[SKIP]");
@@ -157,14 +159,14 @@ function partstatus_leeftijd_configure($array_part = NULL, $basedate = NULL, $gr
 	wachthond($extdebug, 2, "########################################################################");
 
 	if ($job == 'event' && !empty($inject_cont) && $contact_id) {
-		base_api_wrapper('Contact', $contact_id, $inject_cont, "PARTSTATUS_AGE_CONT");
+		base_api_wrapper('Contact', $contact_id, $inject_cont, "PARTSTATUS_AGE_CONT", $extdebug);
 		wachthond($extdebug, 3, "Contact (Werving) leeftijden succesvol weggeschreven", 			"[SUCCESS]");
 	} else {
 		wachthond($extdebug, 4, "Geen Contact updates uitgevoerd (Geen data of job was geen event)","[SKIP]");
 	}
 
 	if (!empty($inject_part) && $ditevent_part_id) {
-		base_api_wrapper('Participant', $ditevent_part_id, $inject_part, "PARTSTATUS_AGE_PART");
+		base_api_wrapper('Participant', $ditevent_part_id, $inject_part, "PARTSTATUS_AGE_PART", $extdebug);
 		wachthond($extdebug, 3, "Participant leeftijden succesvol weggeschreven", 					"[SUCCESS]");
 	} else {
 		wachthond($extdebug, 4, "Geen Participant updates uitgevoerd (Geen wijzigingen)", 			"[SKIP]");

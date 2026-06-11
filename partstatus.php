@@ -38,6 +38,7 @@ RELEVANTE CIVIRULES
 require_once 'partstatus.civix.php';
 
 // Laad alle functionele componenten (specialisten) in het geheugen
+require_once 'partstatus.sheetsync.php';
 require_once 'partstatus.helpers.php';
 require_once 'partstatus.leeftijd.php';
 require_once 'partstatus.criteria.php';
@@ -125,6 +126,9 @@ function partstatus_civicrm_customPre($op, $groupID, $entityID, &$params) {
         return; // Stop: Dit event valt buiten de scope van de Partstatus module
     }
 
+    $partstatus_custompre_start = microtime(TRUE);
+    watchdog('civicrm_timing', base_microtimer("START partstatus_custompre [GID: $groupID / EID: $entityID]"), NULL, WATCHDOG_DEBUG);
+
     wachthond($extdebug, 3, "########################################################################");
     wachthond($extdebug, 2, "### PARTSTATUS PRE - DEEL_INTERN EXTRACTIE",                    "[START]");
     wachthond($extdebug, 3, "########################################################################");
@@ -205,6 +209,9 @@ function partstatus_civicrm_customPre($op, $groupID, $entityID, &$params) {
     wachthond($extdebug, 3, "########################################################################");
     wachthond($extdebug, 2, "### PARTSTATUS PRE - DEEL_INTERN EXTRACTIE",                    "[EINDE]");
     wachthond($extdebug, 3, "########################################################################");
+
+    $total_partstatus_custompre_duur = number_format(microtime(TRUE) - $partstatus_custompre_start, 3);
+    watchdog('civicrm_timing', base_microtimer("EINDE partstatus_custompre"), NULL, WATCHDOG_DEBUG);
 }
 
 /**
@@ -245,6 +252,9 @@ function partstatus_civicrm_pre($op, $objectName, $id, &$params) {
     if ($objectName != 'Participant' || $op != 'edit' || empty($id) || !isset($params['status_id'])) {
         return; 
     }
+
+    $partstatus_pre_start = microtime(TRUE);
+    watchdog('civicrm_timing', base_microtimer("START partstatus_pre [PID: $id]"), NULL, WATCHDOG_DEBUG);
 
     wachthond($extdebug, 2, "########################################################################");
     wachthond($extdebug, 1, "### PARTSTATUS PRE 1.0 - DATA VERZAMELEN",                      "[START]");
@@ -315,6 +325,9 @@ function partstatus_civicrm_pre($op, $objectName, $id, &$params) {
     wachthond($extdebug, 2, "########################################################################");
     wachthond($extdebug, 1, "### PARTSTATUS PRE - VOLTOOID",                                 "[EINDE]");
     wachthond($extdebug, 2, "########################################################################");
+
+    $total_partstatus_pre_duur = number_format(microtime(TRUE) - $partstatus_pre_start, 3);
+    watchdog('civicrm_timing', base_microtimer("EINDE partstatus_pre"), NULL, WATCHDOG_DEBUG);
 }
 
 /**
@@ -325,13 +338,21 @@ function partstatus_civicrm_post($op, $objectName, $objectId, &$objectRef) {
 
     $extdebug = 'partstatus.post'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
 
+    // Sheet-sync dirty flag: zet bij elke participant-mutatie (create/edit/delete)
+    if ($objectName == 'Participant' && in_array($op, ['create', 'edit', 'delete'])) {
+        ozk_sheet_sync_set_dirty();
+    }
+
     if ($objectName == 'Participant' && $op == 'edit') {
         
         // Vraag op of we in de PRE hook een oude status hadden klaargezet voor dit ID
         $old_status_id = partstatus_getset_old_status('get', $objectId);
 
         if ($old_status_id) {
-            
+
+            $partstatus_post_start = microtime(TRUE);
+            watchdog('civicrm_timing', base_microtimer("START partstatus_post [PID: $objectId]"), NULL, WATCHDOG_DEBUG);
+
             wachthond($extdebug, 2, "########################################################################");
             wachthond($extdebug, 1, "### PARTSTATUS POST-HOOK - TRIGGER ACTIVITY LOGGER",             "[EXEC]");
             wachthond($extdebug, 2, "########################################################################");
@@ -350,8 +371,11 @@ function partstatus_civicrm_post($op, $objectName, $objectId, &$objectRef) {
 
             // Ruim het RAM-geheugen netjes op
             partstatus_getset_old_status('clear', $objectId);
-            
+
             wachthond($extdebug, 3, "Activity flow voltooid en geheugen gewist.",                   "[CLEANUP]");
+
+            $total_partstatus_post_duur = number_format(microtime(TRUE) - $partstatus_post_start, 3);
+            watchdog('civicrm_timing', base_microtimer("EINDE partstatus_post"), NULL, WATCHDOG_DEBUG);
         }
     }
 }
