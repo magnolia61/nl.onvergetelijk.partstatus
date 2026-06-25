@@ -199,4 +199,89 @@ class CriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
     $this->assertEquals('groep_5', $result['new_groepklas'], 'klas_5 op kk1 moet automatisch gecorrigeerd worden naar groep_5.');
     $this->assertEquals('prima',   $result['criteria_school'], 'Na correctie naar groep_5 moet school prima zijn.');
   }
+
+  // ########################################################################
+  // ### KAMPKORT-AANWEZIGHEID (3 waarden nodig: kampkort + groep/klas + leeftijd)
+  // ########################################################################
+  //
+  // Regressie voor Rowan Buijl (jun 2026): een gelijktijdige dubbel-submit liet de
+  // registratie afbreken op een DB-deadlock (1213/1412 op de ACL-cache) vóór CORE 8.2
+  // (core.php), waardoor part_kampkort nooit vanuit het event werd gesynct. Met lege
+  // kampkort matcht 17.4 geen enkele leeftijdsband → onterecht 'afwijkend' → wachtlijst.
+
+  /**
+   * Lege part_kampkort, maar het event-kampkort (kenmerken_kampkort) is bekend:
+   * de check moet terugvallen op het event-kampkort. jk1 + 17.4 + klas_4 → prima.
+   */
+  public function testLegeKampkortValtTerugOpEventKampkort() {
+    $part = [
+      'part_rol'           => 'deelnemer',
+      'event_type_id'      => 14,            // jeugdkamp
+      'part_kampkort'      => '',            // leeg: nog niet gesynct (afgebroken registratie)
+      'kenmerken_kampkort' => 'jk1',         // event-kampkort is wél bekend
+      'part_groepklas'     => 'klas_4',
+    ];
+    $result = partstatus_criteria(0, $part, 17.4);
+
+    $this->assertNotNull($result, 'Met een bekende event-kampkort mag de check niet afbreken.');
+    $this->assertEquals('prima',            $result['criteria_leeftijd'],  '17.4 op jk1 moet prima zijn via event-fallback.');
+    $this->assertEquals('prima',            $result['criteria_school'],    'klas_4 op jk1 moet prima zijn.');
+    $this->assertEquals('criteriaprima',    $result['criteria_indicatie'], 'Indicatie moet criteriaprima zijn (geen wachtlijst).');
+    $this->assertEquals('oordeelnietnodig', $result['criteria_oordeel'],   'Geen handmatig oordeel nodig bij perfecte match.');
+  }
+
+  /**
+   * De event-fallback levert exact hetzelfde resultaat als wanneer part_kampkort wél gevuld is.
+   */
+  public function testEventFallbackGeeftZelfdeResultaatAlsGevuldeKampkort() {
+    $base = [
+      'part_rol'        => 'deelnemer',
+      'event_type_id'   => 14,
+      'part_groepklas'  => 'klas_4',
+    ];
+    $met_part  = partstatus_criteria(0, $base + ['part_kampkort' => 'jk1'], 17.4);
+    $met_event = partstatus_criteria(0, $base + ['part_kampkort' => '', 'kenmerken_kampkort' => 'jk1'], 17.4);
+
+    $this->assertEquals($met_part, $met_event, 'Event-fallback moet identiek oordelen aan een gevulde part_kampkort.');
+  }
+
+  /**
+   * Kampkort volledig onbekend (part én event leeg): de check mag GEEN vals 'afwijkend'
+   * produceren. Onze systeemfout → neutrale uitkomst: noggeenindicatie + oordeelnognodig +
+   * de vlag criteria_incompleet (waarop de orkestratielaag status 8 forceert en webteam mailt).
+   */
+  public function testGeenKampkortGeeftIncompleetGeenValsAfwijkend() {
+    $part = [
+      'part_rol'        => 'deelnemer',
+      'event_type_id'   => 14,
+      'part_kampkort'   => '',   // part leeg
+      // kenmerken_kampkort ontbreekt volledig
+      'part_groepklas'  => 'klas_4',
+    ];
+    $result = partstatus_criteria(0, $part, 17.4);
+
+    $this->assertNotNull($result, 'Onvolledige data mag geen NULL geven; de orkestratielaag heeft de vlag nodig.');
+    $this->assertEquals('noggeenindicatie', $result['criteria_indicatie'], 'Indicatie moet neutraal zijn, niet leeftijd/school-wijktaf.');
+    $this->assertEquals('oordeelnognodig',  $result['criteria_oordeel'],   'Oordeel moet op nog-nodig (handmatig) staan.');
+    $this->assertTrue(!empty($result['criteria_incompleet']),             'criteria_incompleet moet gezet zijn bij ontbrekend kampkort.');
+    $this->assertNotContains($result['criteria_indicatie'], ['leeftijdwijktaf', 'schoolwijktaf', 'criteriawijktaf'], 'Mag nooit een alarmerende wijkt-af-indicatie zijn.');
+  }
+
+  /**
+   * Ontbrekend kampkort, maar er is al een handmatig beheerderoordeel: dat blijft behouden
+   * en de aanmelding wordt NIET als incompleet gemarkeerd (geen webteam-alert nodig).
+   */
+  public function testGeenKampkortBehoudtHandmatigOordeel() {
+    $part = [
+      'part_rol'         => 'deelnemer',
+      'event_type_id'    => 14,
+      'part_kampkort'    => '',
+      'part_groepklas'   => 'klas_4',
+      'criteria_oordeel' => 'oordeelprima',   // beheerder heeft al beslist
+    ];
+    $result = partstatus_criteria(0, $part, 17.4);
+
+    $this->assertEquals('oordeelprima', $result['criteria_oordeel'], 'Handmatig oordeel moet behouden blijven.');
+    $this->assertTrue(empty($result['criteria_incompleet']),         'Met een handmatig oordeel is ingrijpen/alerting niet nodig.');
+  }
 }

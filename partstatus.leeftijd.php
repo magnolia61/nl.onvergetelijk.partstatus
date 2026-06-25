@@ -147,8 +147,13 @@ function partstatus_leeftijd_configure($array_part = NULL, $basedate = NULL, $gr
 	}
 
 	if ($job == 'event' && $groupID !== NULL && in_array($groupID, ["139", "190"]) && $ditevent_part_id) {
-		// Ruwe waarde meegeven; base_api_wrapper formatteert zelf
+		// Ruwe waarden meegeven; base_api_wrapper formatteert zelf.
+		// Naast de decimale leeftijd schrijven we ook rondjaren + rondmaand naar de participant,
+		// zodat de mail-token-keten (part → ditjaar/contact → {$user_kampleeftijd_*}) een
+		// participant-bron heeft. Veld nextkamp_rondmaand (id 2353) is hiervoor toegevoegd aan PART.
 		$inject_part['PART.nextkamp_decimalen'] = $age_event['leeftijd_decimalen'] ?? 0;
+		$inject_part['PART.nextkamp_rondjaren'] = $age_event['leeftijd_rondjaren'] ?? 0;
+		$inject_part['PART.nextkamp_rondmaand'] = $age_event['leeftijd_rondmaand'] ?? 0;
 		wachthond($extdebug, 4, "Participant PART velden succesvol geprepareerd", "[OK]");
 	} else {
 		wachthond($extdebug, 4, "Participant update overgeslagen (Profiel/Job matcht niet)", "[SKIP]");

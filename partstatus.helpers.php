@@ -43,6 +43,18 @@ function partstatus_configure($part_id, $array_part = NULL, $array_criteria = NU
     // Haal de originele data op voor de Smart Guard vergelijking (Lazy load indien nodig)
     $old_data = $array_part ?: (base_pid2part($part_id) ?: []);
 
+    // WEBTEAM-ALERT — ALLEEN wanneer de indicatie niet gemaakt kón worden (criteria_incompleet,
+    // bv. kampkort niet gesynct door een afgebroken registratie — onze systeemfout). LET OP: we
+    // hangen dit bewust NIET aan status 8, want status 8 ontstaat ook legitiem bij een échte
+    // criteria-afwijking die handmatig oordeel vraagt. De dedupe gebeurt op de incomplete-staat
+    // zelf: vuren alleen bij INTREDE (oude opgeslagen indicatie was nog geen 'noggeenindicatie'),
+    // zodat herhaalde saves geen mailstroom veroorzaken. De familie krijgt bewust géén mail.
+    if (!empty($ctx['criteria']['criteria_incompleet'])
+        && ($old_data['criteria_indicatie'] ?? NULL) !== 'noggeenindicatie'
+        && function_exists('partstatus_mail_webteam_incomplete')) {
+        partstatus_mail_webteam_incomplete($part_id, $old_data, $ctx);
+    }
+
     wachthond($extdebug, 2, "########################################################################");
     wachthond($extdebug, 1, "### PARTSTATUS CONFIGURE 2.0 - DATA PREPARATIE",              "[MAPPING]");
     wachthond($extdebug, 2, "########################################################################");
@@ -251,4 +263,116 @@ function partstatus_configure($part_id, $array_part = NULL, $array_criteria = NU
 
     return $ctx; // Geef de berekende context (Super Array) terug aan degene die deze functie opriep
 
+}
+
+/**
+ * MODULE: PARTSTATUS (Webteam Alert — onvolledige criteria)
+ * FUNCTIONEEL: Stuurt een HTML-alertmail naar webteam@onvergetelijk.nl wanneer de criteria-check
+ *              voor een deelnemer NIET gemaakt kon worden doordat één of meer velden ontbreken
+ *              (typisch: part_kampkort niet gesynct na een afgebroken registratie). Dit is altijd
+ *              ONZE systeemfout; de familie krijgt hierover bewust geen mail. De deelnemer staat
+ *              zolang op status 8 (Afwachting oordeel) zodat er niet automatisch bevestigd wordt.
+ * TECHNISCH: Direct via CRM_Utils_Mail::send() — geen template, geen contact-mail, geen schedule.
+ *            Gemodelleerd naar account_mail_admin_alert() in nl.onvergetelijk.account.
+ * @param int   $part_id   Participant ID van de onvolledige aanmelding
+ * @param array $old_data  De base_pid2part-array (registratiegegevens voor in de mail)
+ * @param array $ctx       De consolidate-context (bevat criteria_missing)
+ */
+function partstatus_mail_webteam_incomplete($part_id, $old_data, $ctx) {
+
+    $extdebug   = 'partstatus.alert'; // Kanaal voor centrale debug-config
+    $apidebug   = FALSE;
+
+    wachthond($extdebug, 2, "########################################################################");
+    wachthond($extdebug, 1, "### PARTSTATUS ALERT - WEBTEAM MAIL (ONVOLLEDIGE CRITERIA)",     "[ALERT]");
+    wachthond($extdebug, 2, "########################################################################");
+
+    // 1.0 GEGEVENS VERZAMELEN
+    $contact_id     = $old_data['contact_id']            ?? NULL;
+    $displayname    = $old_data['displayname']           ?? ('Contact ' . $contact_id);
+    $event_id       = $old_data['event_id']              ?? NULL;
+    $kampnaam       = $old_data['kenmerken_kampnaam']    ?? ($old_data['part_kampnaam'] ?? '-');
+    $kampkort_part  = $old_data['part_kampkort']         ?: '(leeg)';
+    $kampkort_event = $old_data['kenmerken_kampkort']    ?: '(leeg)';
+    $event_start    = $old_data['event_start_date']      ?? '-';
+    $groepklas      = $old_data['part_groepklas']        ?? '-';
+    $birth_date     = $old_data['birth_date']            ?? '-';
+    $missing        = $ctx['criteria']['criteria_missing'] ?? ['onbekend'];
+    $missing_txt    = implode(', ', (array) $missing);
+
+    // 1.1 LINKS NAAR CIVICRM (contact + deze inschrijving)
+    $contact_url = $contact_id
+        ? 'https://www.onvergetelijk.nl/civicrm/contact/view?reset=1&cid=' . $contact_id
+        : NULL;
+    $part_url = ($contact_id && $part_id)
+        ? 'https://www.onvergetelijk.nl/civicrm/contact/view/participant?reset=1&action=view&id=' . $part_id . '&cid=' . $contact_id
+        : NULL;
+
+    wachthond($extdebug, 3, "Onvolledige aanmelding", "[PID $part_id / CID $contact_id / mist: $missing_txt]");
+
+    // 2.0 HTML-BODY OPBOUWEN
+    $rij = function ($label, $waarde) {
+        return "<tr><td style='padding:4px 8px;border:1px solid #ddd;'><strong>" . htmlspecialchars($label)
+             . "</strong></td><td style='padding:4px 8px;border:1px solid #ddd;'>" . htmlspecialchars((string) $waarde) . "</td></tr>";
+    };
+
+    $body_html  = "<p>De criteria-check voor onderstaande aanmelding kon <strong>niet</strong> worden uitgevoerd "
+                . "omdat één of meer velden ontbraken: <strong>" . htmlspecialchars($missing_txt) . "</strong>.</p>";
+    $body_html .= "<p>Dit is een systeemfout aan onze kant (meestal: het kampkort is niet vanuit het event op de "
+                . "deelnemer gesynct, bv. doordat de inschrijving halverwege afbrak). De deelnemer staat daarom op "
+                . "<strong>Afwachting oordeel</strong> (status 8) en de ouders hebben hierover géén mail gekregen. "
+                . "Vul het ontbrekende veld aan en sla de inschrijving opnieuw op; de criteria worden dan herrekend.</p>";
+
+    $body_html .= "<table style='border-collapse:collapse;width:100%;max-width:640px;'>";
+    $body_html .= $rij('Deelnemer',        $displayname);
+    $body_html .= $rij('Geboortedatum',    $birth_date);
+    $body_html .= $rij('Participant ID',   $part_id);
+    $body_html .= $rij('Kamp',             $kampnaam . ' (EID ' . $event_id . ')');
+    $body_html .= $rij('Kampstart',        $event_start);
+    $body_html .= $rij('Kampkort (event)', $kampkort_event);
+    $body_html .= $rij('Kampkort (deelnemer)', $kampkort_part);
+    $body_html .= $rij('Groep/klas',       $groepklas);
+    $body_html .= $rij('Ontbrekend',       $missing_txt);
+    $body_html .= "</table>";
+
+    if ($contact_url) {
+        $body_html .= "<p style='margin-top:16px;'>"
+                    . "<a href='" . $contact_url . "'>Contact $contact_id openen in CiviCRM</a>";
+        if ($part_url) {
+            $body_html .= " &middot; <a href='" . $part_url . "'>Deze inschrijving openen</a>";
+        }
+        $body_html .= "</p>";
+    }
+
+    $body_html .= "<hr style='margin:24px 0;border:none;border-top:1px solid #ccc;'>"
+                . "<p style='font-size:12px;color:#666;'>Gegenereerd door nl.onvergetelijk.partstatus op "
+                . date('d-m-Y H:i:s') . "</p>";
+
+    // 3.0 VERSTUREN (direct, zonder template/contact — vgl. account_mail_admin_alert)
+    $to_mail    = 'webteam@onvergetelijk.nl';
+    $from_mail  = \Civi::settings()->get('mailing_from_email') ?: 'noreply@onvergetelijk.nl';
+    $from_name  = \Civi::settings()->get('mailing_from_name')  ?: 'OZK CiviCRM';
+
+    $params_alert = [
+        'from'    => '"' . $from_name . '" <' . $from_mail . '>',
+        'toEmail' => $to_mail,
+        'toName'  => 'Webteam OZK',
+        'subject' => '[OZK CRITERIA] Onvolledige aanmelding — handmatig oordeel nodig: ' . $displayname,
+        'html'    => $body_html,
+        'text'    => strip_tags(str_replace(['<br>', '<br/>', '<br />', '</p>', '</tr>'], "\n", $body_html)),
+    ];
+
+    wachthond($extdebug, 7, 'params_alert', $params_alert);
+
+    try {
+        $sent = \CRM_Utils_Mail::send($params_alert);
+        wachthond($extdebug, 9, 'alert_sent', $sent ? 'OK' : 'MISLUKT');
+        if (!$sent) {
+            watchdog('nl_partstatus', 'Webteam-alert (onvolledige criteria) niet verstuurd voor PID @pid.',
+                ['@pid' => $part_id], WATCHDOG_ERROR);
+        }
+    } catch (\Exception $e) {
+        wachthond($extdebug, 1, "ALERT MAIL EXCEPTION", $e->getMessage());
+        watchdog('nl_partstatus', 'Webteam-alert exception: @msg', ['@msg' => $e->getMessage()], WATCHDOG_ERROR);
+    }
 }

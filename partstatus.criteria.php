@@ -62,7 +62,13 @@ function partstatus_criteria($part_id, $array_part = NULL, $leeftijd_dec = NULL)
 	}
 
 	// Basisvariabelen inladen voor de komende regels
-	$kampkort			= $array_part['part_kampkort']		?? NULL;
+	// FALLBACK: part_kampkort wordt pas in CORE 8.2 (core.php) vanuit het event op de deelnemer
+	// gesynct. Breekt een registratie daarvoor af (bv. DB-deadlock 1213/1412 op de ACL-cache bij
+	// gelijktijdige submits), dan is part_kampkort nog leeg terwijl het event-kampkort
+	// (kenmerken_kampkort) wél bekend is. Zonder kampkort matcht geen enkele leeftijds-/schoolband
+	// en levert de check onterecht 'afwijkend' op. Daarom vallen we terug op het event-kampkort.
+	// Let op: '?:' (niet '??') want part_kampkort kan een lege string zijn, niet enkel NULL.
+	$kampkort			= $array_part['part_kampkort'] ?: ($array_part['kenmerken_kampkort'] ?? NULL);
 	$groepklas			= $array_part['part_groepklas']		?? NULL;
 	$leeftijd			= (float)$leeftijd_dec;
 	$criteria_oordeel	= $array_part['criteria_oordeel']	?? NULL;
@@ -71,6 +77,41 @@ function partstatus_criteria($part_id, $array_part = NULL, $leeftijd_dec = NULL)
 	wachthond($extdebug, 1, "Input voor beoordeling kampkort",  	"[$kampkort]");
 	wachthond($extdebug, 1, "Input voor beoordeling groep/klas",   	"[$groepklas]");
 	wachthond($extdebug, 1, "Input voor beoordeling leeftijd",  	"[$leeftijd]");
+
+	// GUARD: zonder kampkort (part én event leeg) is een betrouwbare criteria-check onmogelijk —
+	// alle leeftijds- en schoolbanden zijn kampkort-specifiek. Dit is ALTIJD onze systeemfout
+	// (kampkort wordt door ons vanuit het event gesynct), nooit een fout van de ouder. We mogen
+	// daarom géén alarmerende 'wijkt af'-mail naar de familie sturen en NIET automatisch bevestigen
+	// (er is mogelijk geen plek of de criteria wijken alsnog af). In plaats daarvan:
+	//   - indicatie → 'noggeenindicatie' (neutraal, triggert geen ouder-mail)
+	//   - oordeel   → 'oordeelnognodig'  (handmatig oordeel vereist)
+	//   - vlag 'criteria_incompleet' → de orkestratielaag forceert status 8 (Afwachting oordeel)
+	//     en stuurt een alert naar webteam@onvergetelijk.nl (zie partstatus_consolidate/_configure).
+	if (empty($kampkort)) {
+
+		// Respecteer een reeds geveld handmatig beheerderoordeel; dan is ingrijpen niet nodig.
+		if (in_array($criteria_oordeel, ['oordeelprima', 'oordeelaangepast', 'oordeelafgewezen', 'buitencriteria'])) {
+			wachthond($extdebug, 1, "Geen kampkort, maar handmatig oordeel aanwezig ($criteria_oordeel). Behouden.", "[OVERRIDE]");
+			return [
+				'criteria_leeftijd'		=> 'onbekend',
+				'criteria_school'		=> 'onbekend',
+				'criteria_indicatie'	=> 'noggeenindicatie',
+				'criteria_oordeel'		=> $criteria_oordeel,
+				'new_groepklas'			=> $groepklas,
+			];
+		}
+
+		wachthond($extdebug, 1, "!!! INCOMPLEET !!! Geen kampkort (part én event leeg) voor PID $part_id. Criteria onbepaald; webteam-alert volgt.", "[NO_KAMPKORT]");
+		return [
+			'criteria_leeftijd'		=> 'onbekend',
+			'criteria_school'		=> 'onbekend',
+			'criteria_indicatie'	=> 'noggeenindicatie',
+			'criteria_oordeel'		=> 'oordeelnognodig',
+			'new_groepklas'			=> $groepklas,
+			'criteria_incompleet'	=> TRUE,
+			'criteria_missing'		=> ['kampkort'],
+		];
+	}
 
 	wachthond($extdebug, 2, "########################################################################");
 	wachthond($extdebug, 1, "### PARTSTATUS CRITERIA 2.0 - CORRECTIE GROEP/KLAS MIXUP",  "[GROEPKLAS]");

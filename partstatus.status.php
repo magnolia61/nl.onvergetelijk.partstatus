@@ -151,6 +151,17 @@ function partstatus_consolidate($part_id, $array_part = NULL, $array_criteria = 
         wachthond($extdebug, 4, "Resultaat", "Status " . $res_status['status_id'] . " toegewezen door wachtlijst motor."); // Log uitkomst motor
     }   // Einde statusbepaling
 
+    // FALLBACK ONVOLLEDIGE DATA: konden de criteria niet betrouwbaar bepaald worden (bv. kampkort
+    // niet gesynct door een afgebroken registratie — onze systeemfout), dan houden we de deelnemer
+    // bewust op status 8 (Afwachting oordeel). NIET auto-bevestigen: er is mogelijk geen plek of de
+    // criteria wijken alsnog af. Een mens lost het op (partstatus_configure stuurt de webteam-alert).
+    // Geannuleerd (4) laten we met rust.
+    if (!empty($array_criteria['criteria_incompleet']) && $old_status_id != 4) {
+        wachthond($extdebug, 1, "Criteria incompleet (ontbrekend veld). Status geforceerd op 8 (Afwachting oordeel).", "[INCOMPLEET]");
+        $res_status['status_id']    = 8;
+        $res_status['status_label'] = 'Afwachting oordeel';
+    }
+
     wachthond($extdebug, 2, "########################################################################");
     wachthond($extdebug, 1, "### PARTSTATUS STATUS 4.2 - CRITERIACHECK DATUM BEHEER",       "[DATUMS]");
     wachthond($extdebug, 2, "########################################################################");
