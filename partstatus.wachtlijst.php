@@ -91,6 +91,46 @@ function partstatus_evaluate_wachtlijst($part_id, $array_part = NULL, $array_cri
 	} // Einde Regel A
 
 	wachthond($extdebug, 2, "########################################################################");
+	wachthond($extdebug, 2, "### REGEL 33: WACHTLIJST + AFWIJKENDE CRITERIA → COMBI-STATUS 33");
+	wachthond($extdebug, 2, "########################################################################");
+
+	/*
+	 * SAMENVATTING REGEL 33:
+	 * Vangt deelnemers op die op de wachtlijst staan én tegelijk afwijkende criteria hebben
+	 * waarvoor een handmatig oordeel nodig is. Status 7 (Wachtlijst) is dan niet juist,
+	 * want een betaalmail sturen is te vroeg — het oordeel moet eerst gegeven worden.
+	 * Deze deelnemers krijgen status 33 (Wachtlijst + Criteria) als tussenstation.
+	 */
+
+	if ($new_status_id == 7
+		&& $oordeel == 'oordeelnognodig'
+		&& in_array($indicatie, ['leeftijdwijktaf', 'schoolwijktaf', 'criteriawijktaf'])) {
+		$new_status_id = 33;
+		wachthond($extdebug, 3, "Status 7 + afwijkend criteria ($indicatie) → combi-status 33", "[WACHT+CRITERIA]");
+	} else {
+		wachthond($extdebug, 4, "Geen combi-situatie (status=$new_status_id indicatie=$indicatie), Regel 33 overgeslagen", "[SKIP]");
+	}
+
+	wachthond($extdebug, 2, "########################################################################");
+	wachthond($extdebug, 2, "### REGEL 33b: OORDEEL GOEDGEKEURD → TERUG NAAR NORMALE WACHTLIJST (7)");
+	wachthond($extdebug, 2, "########################################################################");
+
+	/*
+	 * SAMENVATTING REGEL 33b:
+	 * Als een beheerder een positief oordeel geeft terwijl er nog geen plek vrij is
+	 * (deelnemer staat op status 33), stroomt de deelnemer door naar de normale wachtlijst
+	 * (status 7). Zodra er dan een plek vrijkomt pakt Regel D dat op.
+	 */
+
+	if ($new_status_id == 33
+		&& in_array($oordeel, ['oordeelprima', 'oordeelaangepast', 'buitencriteria'])) {
+		$new_status_id = 7;
+		wachthond($extdebug, 3, "Status 33 + oordeel positief ($oordeel) → terug naar normale wachtlijst (7)", "[PROMOTED]");
+	} else {
+		wachthond($extdebug, 4, "Geen positief oordeel op status 33, Regel 33b overgeslagen", "[SKIP]");
+	}
+
+	wachthond($extdebug, 2, "########################################################################");
 	wachthond($extdebug, 2, "### REGEL B: OORDEEL AFGEROND (VAN STATUS 8 NAAR 9)");
 	wachthond($extdebug, 2, "########################################################################");
 
@@ -127,18 +167,17 @@ function partstatus_evaluate_wachtlijst($part_id, $array_part = NULL, $array_cri
 	 * registratiedatum van het formulier in als startpunt.
 	 */
 
-	if ($new_status_id == 7) { 				// Controleer of de status is vastgesteld op 7 (Wachtlijst)
-		$new_status_label = 'Wachtlijst'; 	// Zet het tekstuele label alvast goed
-		wachthond($extdebug, 3, "Status is Wachtlijst (7), datums voor administratie controleren", 		"[CHECK]"); 
-		
+	if (in_array($new_status_id, [7, 33])) { // Controleer of de status is vastgesteld op 7 (Wachtlijst) of 33 (Wachtlijst + Criteria)
+		wachthond($extdebug, 3, "Status is Wachtlijst ($new_status_id), datums voor administratie controleren", "[CHECK]");
+
 		if (empty($wl_erop)) { 				// Als de datum dat iemand op de wachtlijst kwam leeg is
 			$wl_erop = $register_date; 		// Vul automatisch met de originele registratiedatum
-			wachthond($extdebug, 4, "Wachtlijst erop datum ontbrak, gezet op register_date: $wl_erop", 	"[FIXED]"); 
+			wachthond($extdebug, 4, "Wachtlijst erop datum ontbrak, gezet op register_date: $wl_erop", 	"[FIXED]");
 		} else { 							// Datum is al aanwezig, geen actie nodig
-			wachthond($extdebug, 4, "Wachtlijst erop datum is reeds aanwezig: $wl_erop", 				"[OK]"); 
-		} 
+			wachthond($extdebug, 4, "Wachtlijst erop datum is reeds aanwezig: $wl_erop", 				"[OK]");
+		}
 	} else { 								// Deelnemer staat niet op de wachtlijst
-		wachthond($extdebug, 4, "Deelnemer is niet geplaatst op de wachtlijst, Regel C overgeslagen", 	"[SKIP]"); 
+		wachthond($extdebug, 4, "Deelnemer is niet geplaatst op de wachtlijst, Regel C overgeslagen", 	"[SKIP]");
 	}
 
 	wachthond($extdebug, 2, "########################################################################");
@@ -153,21 +192,26 @@ function partstatus_evaluate_wachtlijst($part_id, $array_part = NULL, $array_cri
 	 */
 
 	// Check of we in fase 9 zitten, óf dat de deelnemer zojuist van de wachtlijst is gehaald
-	if ($new_status_id == 9 || (!empty($wl_eraf) && in_array($new_status_id, [0, 5, 6, 7]))) { 
-		
-		wachthond($extdebug, 3, "Deelnemer mag doorstromen, controleren op financiële paylink", 		"[CHECK]"); 
-		
-		if ($has_paylink) { 		// Financiële koppeling is aanwezig	: deelnemer definitief bevestigen
-			$new_status_id    = 1; 
-			$new_status_label = 'Bevestigd'; 
-			wachthond($extdebug, 3, "Paylink gevonden -> Promotie naar Status 1 (Geregistreerd)", 		"[PROMOTED]"); 
+	if ($new_status_id == 9 || (!empty($wl_eraf) && in_array($new_status_id, [0, 5, 6, 7, 33]))) {
+
+		wachthond($extdebug, 3, "Deelnemer mag doorstromen, controleren op financiële paylink", 		"[CHECK]");
+
+		if ($new_status_id == 33 && $oordeel == 'oordeelnognodig' && !$has_paylink) {
+			// Plek vrij maar criteria-oordeel is nog open en geen paylink → oordeel eerst, betaalmail nog niet
+			$new_status_id    = 8;
+			$new_status_label = 'Afwachting Oordeel';
+			wachthond($extdebug, 3, "Status 33 + wl_eraf + oordeel nog open + geen paylink → Status 8 (oordeel eerst)", "[OORDEEL EERST]");
+		} elseif ($has_paylink) { 	// Financiële koppeling is aanwezig	: deelnemer definitief bevestigen
+			$new_status_id    = 1;
+			$new_status_label = 'Bevestigd';
+			wachthond($extdebug, 3, "Paylink gevonden -> Promotie naar Status 1 (Geregistreerd)", 		"[PROMOTED]");
 		} else { 					// Geen betalingsgegevens gevonden	: deelnemer registratie laten afronden
-			$new_status_id    = 9; 
-			$new_status_label = 'Afwachting (Betaling)'; 
-			wachthond($extdebug, 3, "Geen paylink -> Gestagneerd op Status 9 (Voorheen wachtlijst)", 	"[HOLD]"); 
-		} 
+			$new_status_id    = 9;
+			$new_status_label = 'Afwachting (Betaling)';
+			wachthond($extdebug, 3, "Geen paylink -> Gestagneerd op Status 9 (Voorheen wachtlijst)", 	"[HOLD]");
+		}
 	} else { 						// Deelnemer bevindt zich nog niet in de doorstroomfase
-		wachthond($extdebug, 4, "Niet in fase voor doorstroming, Regel D overgeslagen", 				"[SKIP]"); 
+		wachthond($extdebug, 4, "Niet in fase voor doorstroming, Regel D overgeslagen", 				"[SKIP]");
 	}
 
 	wachthond($extdebug, 2, "########################################################################");
@@ -183,12 +227,13 @@ function partstatus_evaluate_wachtlijst($part_id, $array_part = NULL, $array_cri
 	if (empty($new_status_label)) { // Controleer of het label na alle regels nog steeds leeg is
 
 		$labels = [ 						// Maak een vaste lijst (array) met alle mogelijke CiviCRM statussen en hun teksten
-			1 => 'Bevestigd', 				// Status 1 = Bevestigd
-			2 => 'Aangemeld', 				// Status 2 = Aangemeld
-			4 => 'Geannuleerd', 			// Status 4 = Geannuleerd
-			7 => 'Wachtlijst', 				// Status 7 = Wachtlijst
-			8 => 'Afwachting Oordeel', 		// Status 8 = Afwachting Oordeel
-			9 => 'Afwachting (Betaling)' 	// Status 9 = Afwachting Betaling
+			1  => 'Bevestigd', 				// Status 1  = Bevestigd
+			2  => 'Aangemeld', 				// Status 2  = Aangemeld
+			4  => 'Geannuleerd', 			// Status 4  = Geannuleerd
+			7  => 'Wachtlijst', 			// Status 7  = Wachtlijst
+			8  => 'Afwachting Oordeel', 	// Status 8  = Afwachting Oordeel
+			9  => 'Afwachting (Betaling)', 	// Status 9  = Afwachting Betaling
+			33 => 'Wachtlijst + Criteria', 	// Status 33 = Wachtlijst én criteria-oordeel nog open
 		];
 
 		$new_status_label = $labels[$new_status_id] ?? 'Onbekend'; // Zoek het label op in de lijst, gebruik 'Onbekend' als fallback
