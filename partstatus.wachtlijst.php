@@ -186,33 +186,58 @@ function partstatus_evaluate_wachtlijst($part_id, $array_part = NULL, $array_cri
 
 	/*
 	 * SAMENVATTING REGEL D:
-	 * De eindsluis voor financiële afhandeling. Controleert of deelnemers op Status 9 
-	 * (Afwachting Betaling) of deelnemers die van de wachtlijst afkomen, financieel 
-	 * akkoord zijn. Bij een actieve paylink volgt promotie naar Status 1 (Bevestigd).
+	 * De eindsluis voor financiële afhandeling. Er zijn TWEE poorten die allebei open moeten
+	 * zijn voordat een deelnemer naar betaling (9) of bevestiging (1) mag:
+	 *   1. WACHTLIJST-POORT: wl_eraf gevuld (er is een plek vrijgekomen).
+	 *   2. CRITERIA-POORT:   criteriacheck_einde gevuld OF geen oordeel (meer) nodig.
+	 * Is de wachtlijst-poort open maar de criteria-poort nog DICHT (van de wachtlijst af, maar
+	 * het oordeel is nog niet afgerond), dan gaat de deelnemer naar Status 8 (Beoordeling Nodig)
+	 * — géén betaallink zolang de geschiktheid niet is beoordeeld. Zodra criteriacheck_einde
+	 * gezet wordt, pakt Regel B (status 8 → 9) de doorstroom op. Zo zijn wachtlijst en criteria
+	 * symmetrisch: beide worden aangejaagd door een DATUM (wl_eraf resp. criteriacheck_einde).
+	 * Bij een actieve paylink én beide poorten open volgt promotie naar Status 1 (Bevestigd).
 	 */
 
 	// Check of we in fase 9 zitten, óf dat de deelnemer zojuist van de wachtlijst is gehaald
 	if ($new_status_id == 9 || (!empty($wl_eraf) && in_array($new_status_id, [0, 5, 6, 7, 33]))) {
 
-		wachthond($extdebug, 3, "Deelnemer mag doorstromen, controleren op financiële paylink", 		"[CHECK]");
+		wachthond($extdebug, 3, "Deelnemer mag doorstromen; criteria-poort + paylink controleren", "[CHECK]");
 
-		if ($new_status_id == 33 && $oordeel == 'oordeelnognodig' && !$has_paylink) {
-			// Plek vrij maar criteria-oordeel is nog open en geen paylink → oordeel eerst, betaalmail nog niet
+		// CRITERIA-POORT (spiegelbeeld van Regel B's doorstroomvoorwaarde):
+		// De poort is DICHT wanneer er GEEN einddatum (criteriacheck_einde) staat ÉN het oordeel
+		// niet positief/niet-nodig is. Dan is er nog een beoordeling nodig die niet is afgerond.
+		// Let op: een deelnemer met criteria OK (oordeelnietnodig) heeft géén einddatum nodig →
+		// poort staat open → die stroomt gewoon door. Alleen écht openstaande oordelen blokkeren.
+		$criteria_poort_dicht = empty($check_einde)
+			&& !in_array($oordeel, ['oordeelprima', 'oordeelaangepast', 'buitencriteria', 'oordeelnietnodig']);
+
+		if ($criteria_poort_dicht) {
+			// Wachtlijst-poort open (wl_eraf) maar oordeel nog niet afgerond → eerst beoordelen.
+			// Bewust vóór de paylink-check: geschiktheid gaat vóór betaling (status 8 is een harde
+			// poort; ook de pre-hook blokkeert betaal-gestuurde promotie uit 8 zolang er geen oordeel is).
 			$new_status_id    = 8;
 			$new_status_label = 'Afwachting Oordeel';
-			wachthond($extdebug, 3, "Status 33 + wl_eraf + oordeel nog open + geen paylink → Status 8 (oordeel eerst)", "[OORDEEL EERST]");
-		} elseif ($has_paylink) { 	// Financiële koppeling is aanwezig	: deelnemer definitief bevestigen
+			wachthond($extdebug, 3, "Wachtlijst-poort open maar criteria-poort dicht (geen criteriacheck_einde) → Status 8 (Beoordeling Nodig)", "[OORDEEL EERST]");
+		} elseif ($has_paylink) { 	// Beide poorten open + financiële koppeling	: deelnemer definitief bevestigen
 			$new_status_id    = 1;
 			$new_status_label = 'Bevestigd';
-			wachthond($extdebug, 3, "Paylink gevonden -> Promotie naar Status 1 (Geregistreerd)", 		"[PROMOTED]");
-		} else { 					// Geen betalingsgegevens gevonden	: deelnemer registratie laten afronden
+			wachthond($extdebug, 3, "Beide poorten open + paylink -> Promotie naar Status 1 (Geregistreerd)", "[PROMOTED]");
+		} else { 					// Beide poorten open, geen betaling	: deelnemer registratie laten afronden
 			$new_status_id    = 9;
 			$new_status_label = 'Afwachting (Betaling)';
-			wachthond($extdebug, 3, "Geen paylink -> Gestagneerd op Status 9 (Voorheen wachtlijst)", 	"[HOLD]");
+			wachthond($extdebug, 3, "Beide poorten open, geen paylink -> Status 9 (Voorheen wachtlijst / Afwachting Betaling)", "[HOLD]");
 		}
 	} else { 						// Deelnemer bevindt zich nog niet in de doorstroomfase
 		wachthond($extdebug, 4, "Niet in fase voor doorstroming, Regel D overgeslagen", 				"[SKIP]");
 	}
+
+	/*
+	 * NB: hier stond een "Regel E" die wachtlijst_eraf AUTOMATISCH stempelde zodra de status
+	 * op 1/9 kwam. Dat is bewust VERWIJDERD: de wachtlijst is nu — net als criteria — puur
+	 * DATUM-GESTUURD. De datum wachtlijst_eraf is de INPUT die de statusovergang aanjaagt
+	 * (Regel D leest 'm), niet het gevolg ervan. De motor schrijft wl_eraf dus niet meer;
+	 * de admin/het webform zet de datum, de hook partstatus_civicrm_custom() draait de motor.
+	 */
 
 	wachthond($extdebug, 2, "########################################################################");
 	wachthond($extdebug, 2, "### PART STATUS LABELS BEREKENEN", 						  "[FALLBACK]");

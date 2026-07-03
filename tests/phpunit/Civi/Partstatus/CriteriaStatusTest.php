@@ -543,21 +543,27 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
     }
 
     // ########################################################################
-    // ### FASE 2b: Plek vrijgekomen + direct betaling → status 1, geen criteria-mail
+    // ### FASE 2b: Plek vrijgekomen + direct betaling, criteria nog open → status 8
     // ########################################################################
 
     /**
      * Dezelfde afwijkende deelnemer (bk1, klas_3, 13 jaar) krijgt een plek én er is
-     * al een paylink (back-office heeft contributie aangemaakt).
-     *   status 7 → 1 (Geregistreerd)
-     *   CiviRule 210–218 (wachtlijst bevestigd) viert op de 9→1-transitie.
-     *   CiviRule 279–288 (buiten CRITERIA) viert NIET — status 9 is overgeslagen.
+     * al een paylink (back-office heeft contributie aangemaakt) — maar het criteria-
+     * oordeel is nog niet gegeven.
      *
-     * De criteria zijn nog steeds afwijkend, maar de wachtlijst-motor promoveert
-     * direct naar 1 zodra er een paylink is. Status 9 bestaat dus nooit, en
-     * zonder status 9 matcht de buiten-criteria-conditie niet.
+     * Regel D's criteria-poort (partstatus.wachtlijst.php) gaat bewust VÓÓR de paylink-
+     * check: geschiktheid moet eerst beoordeeld zijn, ook als een back-office-medewerker
+     * al een betaallink heeft aangemaakt. Een paylink is geen oordeel over de criteria.
+     * Zonder dat oordeel (geen criteriacheck_einde, geen positief oordeel) blijft de
+     * deelnemer dus op status 8 (Afwachting Oordeel) hangen, ook mét paylink — identiek
+     * aan fase 2a zonder paylink (testPlekVrijgekomenSchoolAfwijkend_Status8). Pas zodra
+     * een beheerder het oordeel geeft (of criteriacheck_einde zet), pakt Regel B de
+     * doorstroom naar 9 op; vandaar promoveert de aanwezige paylink alsnog naar 1.
+     *
+     * CiviRule 279–288 (buiten CRITERIA) vereist status=9; die conditie matcht dus nooit
+     * — status 9 wordt hier niet bereikt zolang het oordeel ontbreekt.
      */
-    public function testPlekVrijgekomenMetPaylink_Status1_GeenCriteriamail(): void {
+    public function testPlekVrijgekomenMetPaylinkMaarGeenOordeel_Status8(): void {
         // Dezelfde deelnemer als fase 1 en 2a: bk1, 13 jaar, klas_3 → schoolwijktaf
         $criteria = $this->criteria('bk1', 13.0, 'klas_3');
 
@@ -567,7 +573,7 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
 
         $deel = [
             'part_rol'                => 'deelnemer',
-            'status_id'               => 33,            // was 33: wachtlijst + criteria
+            'status_id'               => 33,            // wachtlijst + criteria
             'wachtlijst_erop'         => '2026-03-01',
             'wachtlijst_eraf'         => '2026-05-01',  // plek vrijgekomen
             'part_kampgeld_contribid' => 14999,         // paylink direct aangemaakt via back-office
@@ -575,13 +581,13 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         ];
         $wl = partstatus_evaluate_wachtlijst(0, $deel, $criteria);
 
-        $this->assertSame(1, $wl['status_id'],
-            'Status 33 + wl_eraf + paylink → status 1 (Geregistreerd), ook al zijn criteria afwijkend.');
+        $this->assertSame(8, $wl['status_id'],
+            'Status 33 + wl_eraf + paylink, maar criteria-oordeel nog open → status 8 (Beoordeling Nodig): '
+            . 'geschiktheid gaat vóór betaling, ook als er al een paylink is.');
 
-        // Status 33 + paylink: Regel D pakt dit op en promoveert direct naar 1 (has_paylink wint).
-        // CiviRule 279–288 (buiten CRITERIA) vereist status=9; die conditie matcht dus nooit.
+        // Zonder oordeel wordt status 9 niet bereikt, dus de criteria-mail (279–288) vuurt niet.
         $this->assertNotSame(9, $wl['status_id'],
-            'Status mag niet 9 zijn als er al een paylink is — de criteria-mail (279–288) mag dan niet vieren.');
+            'Status mag niet 9 zijn zonder afgerond oordeel — de criteria-mail (279–288) mag dan niet vieren.');
     }
 
     // ########################################################################

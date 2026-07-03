@@ -67,7 +67,9 @@ function partstatus_get_field_map_participant(): array {
         'wachtlijst_erop_2093'          => 'PART_DEEL_INTERN.wachtlijst_erop',
         'wachtlijst_eraf_2094'          => 'PART_DEEL_INTERN.wachtlijst_eraf',
         'groep_klas_593'                => 'PART_DEEL.Groep_klas',
-        'deelnamestatus_1663'           => 'PART.deelnamestatus:label',
+        // Schrijf de WAARDE (1..5), niet het label: de motor levert nu de gemapte optie-waarde
+        // via partstatus_deelnamestatus_from_status(). Label-matching gaf voorheen NULL voor 8/9/33.
+        'deelnamestatus_1663'           => 'PART.deelnamestatus',
     ];
 }
 
@@ -77,7 +79,7 @@ function partstatus_get_field_map_participant(): array {
  */
 function partstatus_get_field_map_contact(): array {
     return [
-        'ditjaar_deelnamestatus_1887'       => 'DITJAAR.ditjaar_deelnamestatus:label',
+        'ditjaar_deelnamestatus_1887'       => 'DITJAAR.ditjaar_deelnamestatus',
         'ditjaar_leeftijd_1263'             => 'DITJAAR.ditjaar_leeftijd',
         'ditjaar_school_1264'               => 'DITJAAR.ditjaar_school',
         'ditjaar_criteria_indicatie_2082'   => 'DITJAAR.ditjaar_criteria_indicatie',
@@ -91,17 +93,27 @@ function partstatus_get_field_map_contact(): array {
 }
 
 /**
+ * LET OP — WAT DEZE HOOK WEL/NIET DOET:
+ * `hook_civicrm_customPre` IS een echte CiviCRM-hook (CRM/Utils/Hook.php ~r577, aangeroepen
+ * vanuit CRM_Core_BAO_CustomValueTable) en vuurt VÓÓR de commit voor het participant-pad
+ * (groep 271). Deze functie draait dus wél — hij doet de "shield" (leeg-formulier-bescherming)
+ * en de datum-opschoning. Wat hij NIET doet: de status-/wachtlijst-motor aanjagen. Het zetten
+ * van een procesdatum (wachtlijst_eraf / criteriacheck_einde) werd hierdoor niet direct
+ * verwerkt. Die betrouwbare trigger zit in `partstatus_civicrm_custom()` (post-commit) verderop.
+ * (NB: de intake-extensie meldt dat háár customPre nooit vuurt — dat geldt voor het webform-pad
+ *  naar Contact-groep 181, dat CustomValueTable::customPre niet raakt; hier op groep 271 wél.)
+ *
  * MODULE: PARTSTATUS (Pre-Storage Validatie & Race-Condition Schild)
- * * FUNCTIONEEL (Het 'Waarom'): 
+ * * FUNCTIONEEL (Het 'Waarom'):
  * Deze module is de poortwachter tussen het formulier op het scherm en de database.
  * Hij doet twee dingen:
  * 1. Bescherming: Voorkomt dat een leeg formulierveld het rekenwerk van onze automatische
  * motor overschrijft (de motor werkt immers razendsnel op de achtergrond).
  * 2. Opschoning: Zorgt dat er geen onlogische data in het systeem komt (bijv. wel
  * procesdatums hebben, maar geen oordeel nodig hebben).
- * * TECHNISCH (Het 'Hoe'): 
+ * * TECHNISCH (Het 'Hoe'):
  * Grijpt in via de CiviCRM `customPre` hook. Deze hook vuurt nádat de gebruiker op
- * opslaan klikt, maar vóórdat CiviCRM de SQL-queries uitvoert. We manipuleren hier 
+ * opslaan klikt, maar vóórdat CiviCRM de SQL-queries uitvoert. We manipuleren hier
  * de interne `$params` array om de uiteindelijke database-schrijfopdracht te sturen.
  * * @param string  $op        De operatie (bijv. 'create', 'edit')
  * @param int     $groupID   Het ID van de Custom Group
@@ -278,8 +290,13 @@ function partstatus_civicrm_pre($op, $objectName, $id, &$params) {
         return; // Stop: Geen bewerkingen toegestaan voor dit event type
     }
 
-    $old_status_id  = $result_part[0]['status_id'] ?? NULL;
-    $huidig_oordeel = $result_part[0]['PART_DEEL_INTERN.criteria_oordeel'] ?? NULL;
+    // BUGFIX: $result_part is al één rij (via ->first() op regel hierboven), géén result-set.
+    // De index [0] bestond dus niet → $old_status_id/$huidig_oordeel waren ALTIJD NULL, waardoor
+    // de statuswijziging nooit werd onthouden en de post-hook (activity-log + sync) nooit draaide
+    // bij een handmatige status-edit. Regel 'event_id.event_type_id' hierboven las al correct
+    // zónder [0]; deze twee zijn nu gelijkgetrokken.
+    $old_status_id  = $result_part['status_id'] ?? NULL;
+    $huidig_oordeel = $result_part['PART_DEEL_INTERN.criteria_oordeel'] ?? NULL;
 
     wachthond($extdebug, 2, "########################################################################");
     wachthond($extdebug, 1, "### PARTSTATUS PRE 2.0 - STATUS BEWAKING (CIVIRULE)",           "[CHECK]");
@@ -360,10 +377,22 @@ function partstatus_civicrm_post($op, $objectName, $objectId, &$objectRef) {
             $new_status_id  = $objectRef->status_id;
             $contact_id     = $objectRef->contact_id;
 
-            wachthond($extdebug, 3, "Status gewijzigd van $old_status_id naar $new_status_id. Genereren context...", "[CTX]");
+            wachthond($extdebug, 3, "Status gewijzigd van $old_status_id naar $new_status_id. Sync-motor draaien...", "[SYNC]");
 
-            // Genereer realtime de "Super Array" zodat we actuele leeftijd/school data hebben voor in de activiteit
-            $ctx = partstatus_consolidate($objectId);
+            /*
+             * VOLLEDIGE SYNC bij een (handmatige) statuswijziging.
+             * WAAROM: Een status-edit via het scherm (bv. secretariaat verplaatst iemand van de
+             * wachtlijst) draait NIET de core-registratiecascade. Voorheen berekende deze hook
+             * alleen een read-only context voor de activity-log, waardoor de spiegelvelden
+             * PART.deelnamestatus én DITJAAR.ditjaar_deelnamestatus achterbleven op hun oude waarde
+             * (zie casus Rowan Buijl: core-status 1/Geregistreerd, maar deelnamestatus nog 2/Wachtlijst).
+             * We roepen nu partstatus_configure() aan: die herberekent de status, stempelt de
+             * wachtlijst-datums (incl. de nieuwe eraf-datum bij uitstroom) en schrijft beide
+             * deelnamestatus-spiegels weg naar wat het volgens de motor MOET zijn.
+             * De re-entrancy-lock in partstatus_configure() vangt de nested hook-aanroep af die
+             * ontstaat doordat de sync zelf de Participant bijwerkt (die valt dan terug op read-only).
+             */
+            $ctx = partstatus_configure($objectId);
 
             if ($ctx && function_exists('partstatus_log_activity')) {
                 partstatus_log_activity($objectId, $contact_id, $old_status_id, $new_status_id, $ctx);
@@ -377,6 +406,135 @@ function partstatus_civicrm_post($op, $objectName, $objectId, &$objectRef) {
             $total_partstatus_post_duur = number_format(microtime(TRUE) - $partstatus_post_start, 3);
             watchdog('civicrm_timing', base_microtimer("EINDE partstatus_post"), NULL, WATCHDOG_DEBUG);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // COARSE deelnamestatus voor statussen BUITEN de kamp-motor (beschikbaarheid 21-24 + Deelgenomen 2).
+    // -------------------------------------------------------------------------
+    // FUNCTIONEEL: Deze statussen leven op event-types (Kampstaf/Trainingsdag/Online/Meetup) die de
+    // partstatus-motor bewust NIET verwerkt — leiding-beschikbaarheid (21-24: Ik ben erbij / Weet niet /
+    // Kan niet / Geen reactie) en 'Deelgenomen' (2) op bv. een trainingsdag. Toch willen we die als grove
+    // deelnamestatus tonen. We schrijven hier — los van de motor en van het kamp-event-filter — ALLEEN het
+    // participant-veld PART.deelnamestatus (NIET de DITJAAR-spiegel: DITJAAR hoort bij het hoofdkamp, niet
+    // bij een training/meetup). Voor Deelgenomen ÓP een kamp (event-type in het filter) zet de motor de
+    // DITJAAR-spiegel wél; daar is dit slechts een — via base_api_wrapper diff-checked — no-op.
+    if ($objectName == 'Participant' && in_array($op, ['create', 'edit'])) {
+        $los_status = (int) ($objectRef->status_id ?? 0);
+        if (in_array($los_status, [2, 21, 22, 23, 24]) && function_exists('partstatus_deelnamestatus_from_status')) {
+            $ds = partstatus_deelnamestatus_from_status($los_status);
+            if ($ds !== NULL && function_exists('base_api_wrapper')) {
+                // base_api_wrapper doet zelf een diff-check → schrijft alleen bij een echte wijziging.
+                base_api_wrapper('Participant', (int) $objectId, ['PART.deelnamestatus' => $ds], 'PARTSTATUS_DS_LOS', $extdebug);
+            }
+        }
+    }
+}
+
+/**
+ * HOOK: CUSTOM (Nadat custom-veldwaarden zijn gecommit) — DE ECHTE POST-SAVE TRIGGER
+ * =======================================================================================
+ * FUNCTIONEEL (Het 'Waarom'):
+ * Dit is de ONTBREKENDE schakel waardoor het invullen van een PROCESDATUM de status
+ * aanjaagt — symmetrisch voor wachtlijst én criteria:
+ *   - `wachtlijst_eraf` invullen   → deelnemer van Wachtlijst (7) naar Voorheen wachtlijst (9)
+ *   - `criteriacheck_einde` invullen → deelnemer van Afwachting Oordeel (8) naar 9
+ * De statuslogica bestaat al (Regel D resp. Regel B in partstatus.wachtlijst.php); het enige
+ * dat ontbrak was een hook die de motor draait als een veld in groep 271 (PART_DEEL_INTERN)
+ * wordt opgeslagen. `partstatus_civicrm_customPre` draait wél (pre-save) maar jaagt de motor
+ * NIET aan (alleen shield + datum-opschoning), en groep 271 zit niet in `cvmax` (dus
+ * core_civicrm_custom draait de motor er ook niet voor).
+ *
+ * TECHNISCH (Het 'Hoe'):
+ * `_civicrm_custom` is de ECHTE CiviCRM-hook; vuurt NÁ de commit. We herkennen relevante
+ * wijzigingen aan de `column_name` per veld en draaien dan de motor via partstatus_configure(),
+ * die de status herberekent, de deelnamestatus-spiegels (PART + DITJAAR) bijwerkt en Regel D/B
+ * de promotie laat doen. Gemodelleerd naar het bewezen intake_civicrm_custom() (intake.php).
+ *
+ * @param string $op        'create' | 'edit' | 'delete'
+ * @param int    $groupID   ID van de gewijzigde custom group
+ * @param int    $entityID  Participant ID (groep 271 hangt aan de Participant)
+ * @param array  $params    De zojuist gecommitte custom-waarden (read-only hier)
+ */
+function partstatus_civicrm_custom($op, $groupID, $entityID, &$params) {
+
+    // -------------------------------------------------------------------------
+    // 1.0 POORTWACHTER: GROEP, OPERATIE & RELEVANT VELD
+    // -------------------------------------------------------------------------
+
+    // 1.1 Alleen PART_DEEL_INTERN (271) en alleen bij aanmaken/wijzigen
+    if ($groupID != 271 || !in_array($op, ['create', 'edit'])) {
+        return;
+    }
+
+    // 1.2 Draaide er daadwerkelijk een DATUM-/OORDEEL-aanjager mee in deze save?
+    //     Zo niet: niets te doen (voorkomt onnodige ~12-19s motor-run bij elke 271-save).
+    //     hook_civicrm_custom levert per veld een array met o.a. 'column_name'.
+    $partstatus_trigger_fields = [
+        'wachtlijst_eraf_2094',     // uitstroom wachtlijst → status 7/33 → 9 (Regel D)
+        'criteriacheck_einde_2092', // oordeel afgerond    → status 8    → 9 (Regel B)
+        'criteria_beoordeling_1429',// handmatig oordeel   → status 8    → 9 (Regel B)
+    ];
+
+    $heeft_trigger = FALSE;
+    if (is_array($params)) {
+        foreach ($params as $veld) {
+            $column_name = is_array($veld) ? ($veld['column_name'] ?? '') : '';
+            if (in_array($column_name, $partstatus_trigger_fields)) {
+                $heeft_trigger = TRUE;
+                break;
+            }
+        }
+    }
+    if (!$heeft_trigger) {
+        return;
+    }
+
+    // 1.3 Per-entiteit guard binnen één request: de motor schrijft zelf groep-271-velden
+    //     terug (Regel C, criteria), waardoor deze hook genest opnieuw vuurt. Deze guard
+    //     (plus de busy-lock in partstatus_configure) sluit een loop uit.
+    static $processing_partstatus_custom = [];
+    if (!empty($processing_partstatus_custom[$entityID])) {
+        return;
+    }
+
+    $extdebug = 'partstatus.custom'; // Kanaal voor centrale debug-config; niveau in ozk.debug.config.php
+
+    // -------------------------------------------------------------------------
+    // 2.0 SLOT DICHT + MOTOR DRAAIEN
+    // -------------------------------------------------------------------------
+    $processing_partstatus_custom[$entityID] = TRUE;
+
+    $partstatus_custom_start = microtime(TRUE);
+    watchdog('civicrm_timing', base_microtimer("START partstatus_custom [GID: $groupID / EID: $entityID]"), NULL, WATCHDOG_DEBUG);
+
+    wachthond($extdebug, 2, "########################################################################");
+    wachthond($extdebug, 1, "### PARTSTATUS [CUSTOM] POST-COMMIT TRIGGER [PID: $entityID]",    "[START]");
+    wachthond($extdebug, 2, "########################################################################");
+
+    try {
+        // Groep 271 hangt aan de Participant: entityID IS het participant-ID.
+        $part_id = (int) $entityID;
+
+        // CRUCIAAL: haal de participant-data VERS op (force_refresh = TRUE).
+        // hook_civicrm_custom vuurt ná de commit, maar een EERDERE hook in dezelfde request
+        // (delta/core) kan de static cache van base_pid2part al hebben gevuld VÓÓR die commit.
+        // Zonder force_refresh leest de motor dan de oude waarde van het zojuist gezette veld
+        // (bv. criteriacheck_einde nog leeg) → geen promotie. Zelfde patroon als intake
+        // (base_cid2cont($cid, TRUE) in intake_civicrm_custom).
+        $part_array = function_exists('base_pid2part') ? (base_pid2part($part_id, TRUE) ?: NULL) : NULL;
+
+        // partstatus_configure herberekent status + spiegelt deelnamestatus (PART + DITJAAR)
+        // en laat Regel D (wachtlijst_eraf) / Regel B (criteriacheck_einde) de promotie doen.
+        partstatus_configure($part_id, $part_array, NULL, 'custom_hook');
+
+        wachthond($extdebug, 1, "### PARTSTATUS [CUSTOM] MOTOR VOLTOOID",                      "[OK]");
+    }
+    finally {
+        // Slot altijd open, ook bij een exception, zodat we niet vast blijven zitten.
+        $processing_partstatus_custom[$entityID] = FALSE;
+
+        $total_partstatus_custom_duur = number_format(microtime(TRUE) - $partstatus_custom_start, 3);
+        watchdog('civicrm_timing', base_microtimer("EINDE partstatus_custom"), NULL, WATCHDOG_DEBUG);
     }
 }
 

@@ -21,8 +21,9 @@ use Civi\Test\TransactionalInterface;
  * Regel B: Status 8 + positief oordeel + paylink       → status 1  (Bevestigd, via Regel D)
  * Regel B: Status 8 + geen oordeel                     → blijft 8
  * Regel C: Status 7 + leeg wl_erop                     → wl_erop gevuld met register_date
- * Regel D: Status 9 + paylink                          → status 1  (Bevestigd)
- * Regel D: Status 9 + geen paylink                     → blijft 9
+ * Regel D: Status 9 + paylink + criteria-poort open    → status 1  (Bevestigd)
+ * Regel D: Status 9 + geen paylink + criteria-poort open → blijft 9
+ * Regel D: Status 9 + paylink + criteria-poort dicht   → status 8  (geschiktheid vóór betaling)
  * Retourstructuur bevat alle verwachte sleutels
  */
 class WachtlijstTest extends \PHPUnit\Framework\TestCase implements EndToEndInterface, TransactionalInterface {
@@ -175,9 +176,19 @@ class WachtlijstTest extends \PHPUnit\Framework\TestCase implements EndToEndInte
 
   /**
    * Status 9 + paylink aanwezig → status 1 (Bevestigd)
+   *
+   * Regel D her-checkt bij ELKE doorstroom (dus ook al-bereikte status 9) de criteria-
+   * poort (criteriacheck_einde OF een positief/niet-nodig oordeel), symmetrisch met de
+   * wachtlijst-poort. In de praktijk staat die poort bij status 9 altijd al open: Regel B
+   * promoveert alleen 8→9 als het oordeel rond is, en de meeste deelnemers krijgen
+   * automatisch 'oordeelnietnodig' (geen wijktaf-indicatie). We zetten dat hier expliciet
+   * zodat de fixture een realistische, reeds-beoordeelde status-9-deelnemer voorstelt.
    */
   public function testRegelDStatus9MetPaylink() {
-    $part   = $this->maakPart(9, ['part_kampgeld_contribid' => 101]);
+    $part   = $this->maakPart(9, [
+      'criteria_oordeel'        => 'oordeelnietnodig',
+      'part_kampgeld_contribid' => 101,
+    ]);
     $result = partstatus_evaluate_wachtlijst(0, $part);
 
     $this->assertEquals(1,          $result['status_id'],    'Status 9 met paylink moet promoveren naar 1 (Bevestigd).');
@@ -186,13 +197,32 @@ class WachtlijstTest extends \PHPUnit\Framework\TestCase implements EndToEndInte
 
   /**
    * Status 9 + geen paylink → blijft status 9
+   *
+   * Zie testRegelDStatus9MetPaylink: criteria-oordeel expliciet 'oordeelnietnodig' zodat
+   * de criteria-poort open staat en alleen het ontbreken van de paylink getoetst wordt.
    */
   public function testRegelDStatus9ZonderPaylink() {
-    $part   = $this->maakPart(9);
+    $part   = $this->maakPart(9, ['criteria_oordeel' => 'oordeelnietnodig']);
     $result = partstatus_evaluate_wachtlijst(0, $part);
 
     $this->assertEquals(9, $result['status_id'], 'Status 9 zonder paylink moet op 9 (Afwachting Betaling) blijven.');
     $this->assertStringContainsString('Betaling', $result['status_label']);
+  }
+
+  /**
+   * Status 9 + paylink, maar de criteria-poort staat (uitzonderlijk) nog dicht → status 8.
+   *
+   * Dekt de symmetrische criteria-poort in Regel D expliciet: zelfs een reeds-bereikte
+   * status 9 met paylink promoveert NIET naar 1 als er geen criteriacheck_einde/positief
+   * oordeel is. Dit zou in productie niet mogen voorkomen (Regel B bewaakt de 8→9-overgang),
+   * maar toont aan dat Regel D de poort niet overslaat puur op basis van de huidige status.
+   */
+  public function testRegelDStatus9MetPaylinkMaarCriteriaPoortDicht() {
+    $part   = $this->maakPart(9, ['part_kampgeld_contribid' => 101]);
+    $result = partstatus_evaluate_wachtlijst(0, $part);
+
+    $this->assertEquals(8, $result['status_id'],
+      'Status 9 met paylink maar zonder afgerond oordeel mag niet naar 1 promoveren — criteria-poort gaat vóór betaling.');
   }
 
   // ########################################################################

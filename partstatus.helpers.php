@@ -9,6 +9,37 @@
  */
 
 /**
+ * MODULE: PARTSTATUS (Deelnamestatus-map — coarse samenvatting)
+ * FUNCTIONEEL: Vertaalt een fijnmazige CiviCRM participant-status (status_id) naar de grove
+ * 5-waarden `deelnamestatus` (optiegroep 643: 1 Bevestigd / 2 Wachtlijst / 3 Criteriacheck /
+ * 4 Afwachting / 5 Geannuleerd). Dit vervangt de oude, fragiele label-string-matching (waarbij
+ * status 8/9/33 op NULL uitkwamen omdat hun label niet exact op een optie-label matchte).
+ * Dekt zowel de deelnemer-flow als de beschikbaarheids-respons van leiding (21-24).
+ * TECHNISCH: geeft de optie-WAARDE (int) terug, of NULL voor niet-gemapte statussen — bij NULL
+ * laat de aanroeper `deelnamestatus` bewust ONGEWIJZIGD (geen wipe).
+ * @param int|null $status_id  CiviCRM participant status_id
+ * @return int|null            Optie-waarde 1..5, of NULL als er geen mapping is
+ */
+function partstatus_deelnamestatus_from_status($status_id) {
+    $map = [
+        // --- Deelnemer-flow ---
+        1  => 1,  // Geregistreerd        → Bevestigd
+        7  => 2,  // Op de wachtlijst      → Wachtlijst
+        8  => 3,  // Afwachting oordeel    → Criteriacheck
+        9  => 4,  // Voorheen wachtlijst   → Afwachting
+        33 => 3,  // Wachtlijst + criteria → Criteriacheck
+        4  => 5,  // Geannuleerd           → Geannuleerd
+        2  => 6,  // Deelgenomen (na afloop aanwezig geweest) → Deelgenomen
+        // --- Beschikbaarheids-respons leiding (event-types Kampstaf/Training/Online/Meetup) ---
+        21 => 5,  // Ik kan zeker niet     → Geannuleerd
+        22 => 4,  // Ik weet het nog niet  → Afwachting
+        23 => 1,  // Ik ben erbij          → Bevestigd
+        24 => 4,  // Nog niet bekend       → Afwachting
+    ];
+    return $map[(int) $status_id] ?? NULL;
+}
+
+/**
  * MODULE: PARTSTATUS (De Sync Engine / Executor)
  * FUNCTIONEEL: Vergelijkt de berekende "Super Array" met de huidige database
  * en slaat uitsluitend de gewijzigde waarden op via de API Wrapper.
@@ -21,12 +52,33 @@ function partstatus_configure($part_id, $array_part = NULL, $array_criteria = NU
     $extdebug = 'partstatus.sync'; // Kanaal voor centrale debug-config; niveau wordt opgezocht in ozk.debug.config.php
 
     if (empty($part_id)) { // Veiligheidscheck: Zonder Participant ID kunnen we niks opslaan
-        wachthond($extdebug, 1, "PARTSTATUS ERROR ($context)", "Geen PID ontvangen. Sync afgebroken."); 
+        wachthond($extdebug, 1, "PARTSTATUS ERROR ($context)", "Geen PID ontvangen. Sync afgebroken.");
         return NULL; // Breek de executie af
     }
 
+    /*
+     * RE-ENTRANCY LOCK (gedeeld per request, per deelnemer).
+     * FUNCTIONEEL: Deze functie schrijft via base_api_wrapper terug naar de Participant
+     * (status_id + deelnamestatus + criteria) én naar het Contact (DITJAAR-spiegel). Die
+     * Participant-write triggert de partstatus post-hook opnieuw, die — sinds we de sync
+     * daar aanroepen — hier weer zou uitkomen. Zonder slot ontstaat een geneste (in het
+     * ergste geval loopende) sync-cascade op hetzelfde record.
+     * TECHNISCH: We zetten een vlag in Civi::$statics vóór het rekenen/schrijven en geven
+     * die bij ELKE uitgang weer vrij (try/finally). Bij een geneste aanroep voor dezelfde
+     * deelnemer doen we GEEN writes, maar geven we wél de verse (read-only) context terug
+     * via partstatus_consolidate(), zodat de aanroeper (bv. de activity-logger) door kan.
+     * Zelfde familie als de pecunia busy-lock; zie geheugen pecunia_reentrancy_deadlock.
+     */
+    if (!empty(Civi::$statics['partstatus']['busy'][$part_id])) {
+        wachthond($extdebug, 3, "Geneste configure-aanroep voor PID $part_id overgeslagen (lock actief). Alleen read-only context.", "[REENTRANT]");
+        return partstatus_consolidate($part_id, $array_part, $array_criteria);
+    }
+    Civi::$statics['partstatus']['busy'][$part_id] = TRUE;
+
+    try {
+
     wachthond($extdebug, 2, "########################################################################");
-    wachthond($extdebug, 1, "### PARTSTATUS CONFIGURE 1.0 - START CONSOLIDATIE","[$context: $part_id]");    
+    wachthond($extdebug, 1, "### PARTSTATUS CONFIGURE 1.0 - START CONSOLIDATIE","[$context: $part_id]");
     wachthond($extdebug, 2, "########################################################################");
 
     /*
@@ -138,8 +190,13 @@ function partstatus_configure($part_id, $array_part = NULL, $array_criteria = NU
     $val_status_label = $ctx['status_label'] ?? '';
     $val_groepklas    = $ctx['criteria']['new_groepklas'] ?? NULL;
 
+    // Coarse deelnamestatus via expliciete status_id-map (NIET meer via label-matching, dat gaf
+    // NULL voor 8/9/33). NULL = niet-gemapte status → $new_deelnamestatus blijft NULL → de
+    // inject-loop (isset-guard) slaat 'm over → bestaande deelnamestatus blijft ongewijzigd.
+    $val_deelnamestatus = partstatus_deelnamestatus_from_status($ctx['status_id'] ?? 0);
+
     // Participant velden
-    $new_deelnamestatus                 = $val_status_label;
+    $new_deelnamestatus                 = $val_deelnamestatus;
     $new_criterialeeftijd               = $mapped_leeftijd;
     $new_criteriaschool                 = $mapped_school;
     $new_criteriaindicatie              = $mapped_indicatie;
@@ -151,7 +208,7 @@ function partstatus_configure($part_id, $array_part = NULL, $array_criteria = NU
     $new_groepklas                      = $val_groepklas;
 
     // Contact velden (Spiegel-velden voor DITJAAR)
-    $new_ditjaardeelnamestatus          = $val_status_label;
+    $new_ditjaardeelnamestatus          = $val_deelnamestatus;
     $new_ditjaarleeftijd                = $mapped_leeftijd;
     $new_ditjaarschool                  = $mapped_school;
     $new_ditjaarcriteriaindicatie       = $mapped_indicatie;
@@ -262,6 +319,11 @@ function partstatus_configure($part_id, $array_part = NULL, $array_criteria = NU
     wachthond($extdebug, 2, "########################################################################");
 
     return $ctx; // Geef de berekende context (Super Array) terug aan degene die deze functie opriep
+
+    } finally {
+        // Geef het slot ALTIJD vrij, ook als base_api_wrapper of consolidate een exception gooit.
+        Civi::$statics['partstatus']['busy'][$part_id] = FALSE;
+    }
 
 }
 
