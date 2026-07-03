@@ -21,6 +21,11 @@
     <ver>6.13</ver>
   </compatibility>
   <comments>Onderdeel van de Onvergetelijk-extensie-suite voor Stichting Onvergetelijke Zomerkampen. Compatibel met CiviCRM 6.13, PHP 8.4 en Smarty 5.</comments>
+  <requires>
+    <ext>nl.onvergetelijk.base</ext>
+    <ext>nl.onvergetelijk.account</ext>
+    <ext>nl.onvergetelijk.pecunia</ext>
+  </requires>
   <civix>
     <namespace>CRM/Partstatus</namespace>
     <format>23.02.1</format>
