@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<menu>
+  <!-- Bevestigings-popups voor het actiemenu van een registratie (zie partstatus.links.php).
+       Deze routes worden automatisch geregistreerd via de menu-xml mixin in info.xml. -->
+  <item>
+    <path>civicrm/partstatus/wachtlijsteraf</path>
+    <page_callback>CRM_Partstatus_Form_WachtlijstEraf</page_callback>
+    <title>Voorheen wachtlijst</title>
+    <access_arguments>access CiviEvent</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/partstatus/criteriaprima</path>
+    <page_callback>CRM_Partstatus_Form_CriteriaPrima</page_callback>
+    <title>Criteria prima</title>
+    <access_arguments>access CiviEvent</access_arguments>
+  </item>
+</menu>

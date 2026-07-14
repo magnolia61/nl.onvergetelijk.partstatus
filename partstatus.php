@@ -45,6 +45,7 @@ require_once 'partstatus.criteria.php';
 require_once 'partstatus.wachtlijst.php';
 require_once 'partstatus.status.php';
 require_once 'partstatus.activities.php';
+require_once 'partstatus.links.php';
 
 /**
  * =======================================================================================
