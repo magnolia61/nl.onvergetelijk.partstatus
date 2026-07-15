@@ -118,8 +118,11 @@ function partstatus_log_activity($part_id, $contact_id, $old_status_id, $new_sta
         'checkPermissions'          => FALSE,
         'debug'                     => $apidebug,
         'values'                    => [
-//          'activity_type_id:label'    => 'Gegevens aangepast',
-            'activity_type_id'          => 154,
+            // Eigen activity type (managed entity, zie partstatus.mgd.php) — bewust NIET
+            // delta's 'Notificatie aandachtspunten' (154). Naam-lookup i.p.v. hardcoded ID:
+            // zo ontkoppelt een statuswijziging van delta's notificatie-pijplijn en kunnen
+            // CiviRules op type 154 (bv. regel 433) er niet meer per ongeluk op reageren.
+            'activity_type_id:name'     => 'Deelnamestatus gewijzigd',
             'subject'                   => $subject,
             'details'                   => $details_html,
             'status_id:name'            => 'Completed',
