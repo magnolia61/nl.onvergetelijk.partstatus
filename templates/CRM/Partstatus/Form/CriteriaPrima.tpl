@@ -1,15 +1,21 @@
 {* +--------------------------------------------------------------------+
  | Bevestigings-popup "Criteria prima"                                  |
  | Zelfde opbouw als de "Voorheen wachtlijst"-popup (gedeeld detailblok) |
- | + eigen actie-blok. Keurt na bevestiging het criteria-oordeel goed    |
- | (oordeelprima + criteriacheck_einde = vandaag); de motor zet door.    |
+ | + eigen actie-blok. Twee modi (gestuurd door $resend_modus uit de     |
+ | form): oordeel goedkeuren (oordeelprima + criteriacheck_einde =       |
+ | vandaag; de motor zet door) of de goedkeuringsmail opnieuw sturen     |
+ | (template 578, als de check al afgerond is).                          |
  +--------------------------------------------------------------------+ *}
 
 <div class="crm-block crm-form-block crm-partstatus-criteriaprima-form-block">
 
 	{* HEADER *}
 	<div class="help">
-		{ts}Controleer de gegevens en de indicaties, en bevestig om het criteria-oordeel goed te keuren.{/ts}
+		{if $resend_modus}
+			{ts}De criteriacheck van deze registratie is al afgerond. Controleer de gegevens en bevestig om de goedkeuringsmail (opnieuw) te sturen.{/ts}
+		{else}
+			{ts}Controleer de gegevens en de indicaties, en bevestig om het criteria-oordeel goed te keuren.{/ts}
+		{/if}
 	</div>
 
 	{* KERNGEGEVENS VAN DE REGISTRATIE *}
@@ -26,6 +32,12 @@
 			<td class="label">{ts}Datum registratie{/ts}</td>
 			<td colspan="2">{$register_date|crmDate}</td>
 		</tr>
+		{if $resend_modus}
+		<tr>
+			<td class="label">{ts}Criteria goedgekeurd op{/ts}</td>
+			<td colspan="2"><strong>{$criteriacheck_einde|crmDate}</strong></td>
+		</tr>
+		{/if}
 		<tr>
 			<td class="label">{ts}Keren deelnemer{/ts}</td>
 			<td colspan="2">{$curcv_keer_deel}</td>
@@ -51,10 +63,14 @@
 		</tr>
 	</table>
 
-	{* WAT GAAT ER GEBEUREN *}
+	{* WAT GAAT ER GEBEUREN — afhankelijk van de modus *}
 	<div class="messages status no-popup">
 		<div class="icon inform-icon"></div>
-		{ts}Bij bevestigen wordt het criteria-oordeel op <strong>Oordeel prima</strong> gezet, de einddatum criteriacheck op vandaag, en gaat de status door naar <strong>Geregistreerd</strong>.{/ts}
+		{if $resend_modus}
+			{ts}Bij bevestigen wordt de goedkeuringsmail <em>CRITERIA leeftijd/school goedgekeurd [OUDERS]</em> (opnieuw) naar het gezin gestuurd, met cc naar info@onvergetelijk.nl. Let op: elke klik verstuurt een mail — er is geen automatische controle op dubbele verzending.{/ts}
+		{else}
+			{ts}Bij bevestigen wordt het criteria-oordeel op <strong>Oordeel prima</strong> gezet, de einddatum criteriacheck op vandaag, en gaat de status door naar <strong>Geregistreerd</strong>.{/ts}
+		{/if}
 	</div>
 
 	{* FOOTER MET KNOPPEN *}

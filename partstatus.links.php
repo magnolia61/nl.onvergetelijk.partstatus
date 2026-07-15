@@ -19,10 +19,15 @@
  * registratie van de wachtlijst te halen of het criteria-oordeel goed te keuren. Deze
  * module voegt daarvoor twee acties toe aan het actiemenu van een registratie, die elk
  * een bevestigings-popup openen (medium-popup) met details en een bevestigknop:
- *   1. "Voorheen wachtlijst"  — alleen zichtbaar als de registratie NU op de wachtlijst
- *                               staat (status 7 Wachtlijst of 33 Wachtlijst + Criteria).
- *   2. "Criteria prima"       — alleen zichtbaar als het oordeel nog openstaat
- *                               (criteria_oordeel leeg of 'oordeelnognodig').
+ *   1. "Voorheen wachtlijst"  — zichtbaar zodra het wachtlijst-proces ooit gestart is
+ *                               (PART_DEEL_INTERN.wachtlijst_erop gevuld). Is de
+ *                               registratie al doorgezet (wachtlijst_eraf óók gevuld),
+ *                               dan biedt de popup de herinneringsmail aan (tmpl 365).
+ *   2. "Criteria prima"       — zichtbaar zodra de criteriacheck ooit gestart is
+ *                               (PART_DEEL_INTERN.criteriacheck_start gevuld). Is de
+ *                               check al afgerond (criteriacheck_einde óók gevuld),
+ *                               dan biedt de popup de goedkeuringsmail opnieuw aan
+ *                               (tmpl 578).
  *
  * TECHNISCH (Het 'Hoe'):
  * hook_civicrm_links vuurt per rij in de participant-selector met op
@@ -70,21 +75,24 @@ function partstatus_civicrm_links($op, $objectName, $objectId, &$links, &$mask, 
         return;
     }
 
-    $status_id          = (int) ($part['status_id']      ?? 0);
-    $criteria_oordeel   = $part['criteria_oordeel']      ?? NULL;
-    wachthond($extdebug, 3, 'status_id',        $status_id);
-    wachthond($extdebug, 3, 'criteria_oordeel', $criteria_oordeel);
+    $wachtlijst_erop     = $part['wachtlijst_erop']       ?? NULL;
+    $criteriacheck_start = $part['criteriacheck_start']   ?? NULL;
+    wachthond($extdebug, 3, 'wachtlijst_erop',     $wachtlijst_erop);
+    wachthond($extdebug, 3, 'criteriacheck_start', $criteriacheck_start);
 
     // ------------------------------------------------------------------------------
     // 3.0 LINKS: voeg de acties conditioneel toe. De class 'medium-popup' laat
     // CiviCRM core de route als AJAX-modal openen (bevestigings-popup).
+    // De condities zijn bewust PROCESVELD-gebaseerd (datum gevuld) en niet
+    // status-gebaseerd: de actie blijft ook ná de doorzet/afronding in het menu
+    // staan, zodat de popup dan de (herinnerings)mail kan aanbieden.
     // ------------------------------------------------------------------------------
 
-    // 3.1 "Voorheen wachtlijst": als de registratie op de wachtlijst staat
-    // (7 = Wachtlijst, 33 = Wachtlijst + Criteria), OF al voorheen-wachtlijst is
-    // (9 = Voorheen wachtlijst) — die laatste tijdelijk mee, zodat de actie ook zichtbaar
-    // blijft bij een al-doorgezette registratie (zie partstatus.wachtlijst.php).
-    if (in_array($status_id, [7, 33, 9])) {
+    // 3.1 "Voorheen wachtlijst": zodra het wachtlijst-proces gestart is (erop-datum
+    // gevuld). Ook een al-doorgezette registratie (eraf-datum gevuld) houdt de actie —
+    // de popup schakelt dan zelf om naar de herinneringsmail-modus
+    // (zie CRM_Partstatus_Form_WachtlijstEraf).
+    if (!empty($wachtlijst_erop)) {
         $links[] = [
             'name'  => ts('Voorheen wachtlijst'),
             'title' => ts('Haal deze registratie van de wachtlijst'),
@@ -96,14 +104,11 @@ function partstatus_civicrm_links($op, $objectName, $objectId, &$links, &$mask, 
         wachthond($extdebug, 3, 'link_toegevoegd', 'voorheen_wachtlijst');
     }
 
-    // 3.2 "Criteria prima": alleen als de registratie op een oordeel WACHT. Twee eisen:
-    //   a. de status is 8 "Afwachting oordeel" of 33 "Wachtlijst + Criteria" — dit sluit
-    //      bevestigde (leiding-)registraties uit die toevallig nog 'oordeelnognodig'
-    //      in het veld hebben staan;
-    //   b. het oordeel-veld staat open (leeg of 'oordeelnognodig', de default van de
-    //      motor zolang er geen automatisch of handmatig oordeel is).
-    $oordeel_open = (empty($criteria_oordeel) || $criteria_oordeel === 'oordeelnognodig');
-    if (in_array($status_id, [8, 33]) && $oordeel_open) {
+    // 3.2 "Criteria prima": zodra de criteriacheck gestart is (start-datum gevuld).
+    // Bewust GEEN status- of oordeel-check meer: ook een al-afgeronde check
+    // (einde-datum gevuld, oordeel gegeven) houdt de actie — de popup schakelt dan
+    // zelf om naar de mail-opnieuw-modus (zie CRM_Partstatus_Form_CriteriaPrima).
+    if (!empty($criteriacheck_start)) {
         $links[] = [
             'name'  => ts('Criteria prima'),
             'title' => ts('Keur de criteria van deze registratie goed'),
