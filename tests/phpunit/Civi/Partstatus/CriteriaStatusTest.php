@@ -72,25 +72,25 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
 
         $this->assertSame('prima',            $r['criteria_leeftijd'],  '9 jaar op kk1 → prima');
         $this->assertSame('prima',            $r['criteria_school'],    'groep_5 op kk1 → prima');
-        $this->assertSame('criteriaprima',    $r['criteria_indicatie']);
+        $this->assertSame('criteriaprima',    $r['criteria_indicatie'],  'Prima leeftijd + prima school op kk1 → indicatie criteriaprima (scenario A)');
         $this->assertSame('oordeelnietnodig', $r['criteria_oordeel'],   'Perfecte match → geen handmatig oordeel nodig');
     }
 
     public function testJK_LeeftijdPrimaSchoolPrima(): void {
         $r = $this->criteria('jk1', 17.0, 'klas_5');
 
-        $this->assertSame('prima',            $r['criteria_leeftijd']);
-        $this->assertSame('prima',            $r['criteria_school']);
-        $this->assertSame('criteriaprima',    $r['criteria_indicatie']);
-        $this->assertSame('oordeelnietnodig', $r['criteria_oordeel']);
+        $this->assertSame('prima',            $r['criteria_leeftijd'],  '17 jaar op jk1 → prima (scenario A)');
+        $this->assertSame('prima',            $r['criteria_school'],    'klas_5 op jk1 → prima (scenario A)');
+        $this->assertSame('criteriaprima',    $r['criteria_indicatie'], 'Prima leeftijd + prima school op jk1 → indicatie criteriaprima (scenario A)');
+        $this->assertSame('oordeelnietnodig', $r['criteria_oordeel'],   'Perfecte match op jk1 → geen handmatig oordeel nodig (scenario A)');
     }
 
     public function testBK_LeeftijdPrimaSchoolPrima(): void {
         $r = $this->criteria('bk1', 13.0, 'groep_8');
 
-        $this->assertSame('prima',         $r['criteria_leeftijd']);
-        $this->assertSame('prima',         $r['criteria_school']);
-        $this->assertSame('criteriaprima', $r['criteria_indicatie']);
+        $this->assertSame('prima',         $r['criteria_leeftijd'],  '13 jaar op bk1 → prima (scenario A)');
+        $this->assertSame('prima',         $r['criteria_school'],    'groep_8 op bk1 → prima (scenario A)');
+        $this->assertSame('criteriaprima', $r['criteria_indicatie'], 'Prima leeftijd + prima school op bk1 → indicatie criteriaprima (scenario A)');
     }
 
     // ########################################################################
@@ -102,8 +102,8 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('kk1', 6.8, 'groep_5');
 
         $this->assertSame('marge',            $r['criteria_leeftijd'],  '6.8 op kk1 → marge (6.7–7.0)');
-        $this->assertSame('prima',            $r['criteria_school']);
-        $this->assertSame('binnenmarges',     $r['criteria_indicatie']);
+        $this->assertSame('prima',            $r['criteria_school'],    'groep_5 op kk1 → prima (scenario B)');
+        $this->assertSame('binnenmarges',     $r['criteria_indicatie'], 'Marge leeftijd + prima school op kk1 → indicatie binnenmarges (scenario B)');
         $this->assertSame('oordeelnietnodig', $r['criteria_oordeel'],   'Marge wordt automatisch goedgekeurd');
     }
 
@@ -112,8 +112,8 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('kk1', 12.2, 'groep_5');
 
         $this->assertSame('marge',            $r['criteria_leeftijd'],  '12.2 op kk1 → marge (12.0–12.3)');
-        $this->assertSame('binnenmarges',     $r['criteria_indicatie']);
-        $this->assertSame('oordeelnietnodig', $r['criteria_oordeel']);
+        $this->assertSame('binnenmarges',     $r['criteria_indicatie'], 'Marge leeftijd op kk1 → indicatie binnenmarges (scenario B, bovenkant)');
+        $this->assertSame('oordeelnietnodig', $r['criteria_oordeel'],   'Marge wordt automatisch goedgekeurd (scenario B, bovenkant)');
     }
 
     public function testJK_MargeLeeftijdOnderkant(): void {
@@ -121,7 +121,7 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('jk1', 15.8, 'klas_4');
 
         $this->assertSame('marge',        $r['criteria_leeftijd'],  '15.8 op jk1 → marge (15.7–16.0)');
-        $this->assertSame('binnenmarges', $r['criteria_indicatie']);
+        $this->assertSame('binnenmarges', $r['criteria_indicatie'], 'Marge leeftijd op jk1 → indicatie binnenmarges (scenario B, onderkant)');
     }
 
     public function testJK_MargeLeeftijdBovenkant(): void {
@@ -129,7 +129,7 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('jk1', 18.2, 'klas_5');
 
         $this->assertSame('marge',        $r['criteria_leeftijd'],  '18.2 op jk1 → marge (18.0–18.3)');
-        $this->assertSame('binnenmarges', $r['criteria_indicatie']);
+        $this->assertSame('binnenmarges', $r['criteria_indicatie'], 'Marge leeftijd op jk1 → indicatie binnenmarges (scenario B, bovenkant)');
     }
 
     // ########################################################################
@@ -140,10 +140,10 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         // tk1: prima leeftijd, klas_4 is marge (klas_2/klas_3 = prima, klas_4 = marge)
         $r = $this->criteria('tk1', 15.0, 'klas_4');
 
-        $this->assertSame('prima',            $r['criteria_leeftijd']);
+        $this->assertSame('prima',            $r['criteria_leeftijd'],  '15 jaar op tk1 → prima (scenario B2)');
         $this->assertSame('marge',            $r['criteria_school'],    'klas_4 op tk1 → marge');
-        $this->assertSame('binnenmarges',     $r['criteria_indicatie']);
-        $this->assertSame('oordeelnietnodig', $r['criteria_oordeel']);
+        $this->assertSame('binnenmarges',     $r['criteria_indicatie'], 'Marge school op tk1 → indicatie binnenmarges (scenario B2)');
+        $this->assertSame('oordeelnietnodig', $r['criteria_oordeel'],   'Marge school wordt automatisch goedgekeurd (scenario B2)');
     }
 
     public function testJK_MargeSchoolKlas3(): void {
@@ -151,7 +151,7 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('jk1', 17.0, 'klas_3');
 
         $this->assertSame('marge',        $r['criteria_school'],    'klas_3 op jk1 → marge');
-        $this->assertSame('binnenmarges', $r['criteria_indicatie']);
+        $this->assertSame('binnenmarges', $r['criteria_indicatie'], 'Marge school op jk1 → indicatie binnenmarges (scenario B2)');
     }
 
     // ########################################################################
@@ -162,9 +162,9 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         // groep_8 is afwijkend op kk1 (prima = groep_3 t/m groep_7)
         $r = $this->criteria('kk1', 9.0, 'groep_8');
 
-        $this->assertSame('prima',           $r['criteria_leeftijd']);
+        $this->assertSame('prima',           $r['criteria_leeftijd'],  '9 jaar op kk1 → prima (scenario C)');
         $this->assertSame('afwijkend',       $r['criteria_school'],    'groep_8 op kk1 → afwijkend');
-        $this->assertSame('schoolwijktaf',   $r['criteria_indicatie']);
+        $this->assertSame('schoolwijktaf',   $r['criteria_indicatie'], 'Afwijkende school + prima leeftijd op kk1 → indicatie schoolwijktaf (scenario C)');
         $this->assertSame('oordeelnognodig', $r['criteria_oordeel'],   'Handmatig oordeel vereist');
     }
 
@@ -172,18 +172,18 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         // groep_8 is afwijkend op jk1 (klas_4+ prima, klas_2/3 marge, groep_8 afwijkend)
         $r = $this->criteria('jk1', 17.0, 'groep_8');
 
-        $this->assertSame('prima',         $r['criteria_leeftijd']);
+        $this->assertSame('prima',         $r['criteria_leeftijd'],  '17 jaar op jk1 → prima (scenario C)');
         $this->assertSame('afwijkend',     $r['criteria_school'],    'groep_8 op jk1 → afwijkend');
-        $this->assertSame('schoolwijktaf', $r['criteria_indicatie']);
+        $this->assertSame('schoolwijktaf', $r['criteria_indicatie'], 'Afwijkende school + prima leeftijd op jk1 → indicatie schoolwijktaf (scenario C)');
     }
 
     public function testBK_SchoolAfwijkend(): void {
         // klas_2 is afwijkend op bk1 (prima = groep_8 en klas_1)
         $r = $this->criteria('bk1', 13.0, 'klas_2');
 
-        $this->assertSame('prima',         $r['criteria_leeftijd']);
+        $this->assertSame('prima',         $r['criteria_leeftijd'],  '13 jaar op bk1 → prima (scenario C)');
         $this->assertSame('afwijkend',     $r['criteria_school'],    'klas_2 op bk1 → afwijkend');
-        $this->assertSame('schoolwijktaf', $r['criteria_indicatie']);
+        $this->assertSame('schoolwijktaf', $r['criteria_indicatie'], 'Afwijkende school + prima leeftijd op bk1 → indicatie schoolwijktaf (scenario C)');
     }
 
     // ########################################################################
@@ -195,9 +195,9 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('kk1', 13.0, 'groep_5');
 
         $this->assertSame('afwijkend',        $r['criteria_leeftijd'],  '13.0 op kk1 → te oud (max marge 12.3)');
-        $this->assertSame('prima',            $r['criteria_school']);
-        $this->assertSame('leeftijdwijktaf',  $r['criteria_indicatie']);
-        $this->assertSame('oordeelnognodig',  $r['criteria_oordeel']);
+        $this->assertSame('prima',            $r['criteria_school'],    'groep_5 op kk1 → prima ondanks leeftijdsafwijking (scenario D)');
+        $this->assertSame('leeftijdwijktaf',  $r['criteria_indicatie'], 'Afwijkende leeftijd + prima school op kk1 → indicatie leeftijdwijktaf (scenario D)');
+        $this->assertSame('oordeelnognodig',  $r['criteria_oordeel'],   'Leeftijdsafwijking vereist handmatig oordeel (scenario D)');
     }
 
     public function testKK_LeeftijdAfwijkendTeJong(): void {
@@ -205,8 +205,8 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('kk1', 6.5, 'groep_4');
 
         $this->assertSame('afwijkend',       $r['criteria_leeftijd'],  '6.5 op kk1 → te jong (min marge 6.7)');
-        $this->assertSame('prima',           $r['criteria_school']);
-        $this->assertSame('leeftijdwijktaf', $r['criteria_indicatie']);
+        $this->assertSame('prima',           $r['criteria_school'],    'groep_4 op kk1 → prima ondanks leeftijdsafwijking (scenario D)');
+        $this->assertSame('leeftijdwijktaf', $r['criteria_indicatie'], 'Afwijkende leeftijd + prima school op kk1 → indicatie leeftijdwijktaf (scenario D)');
     }
 
     public function testJK_LeeftijdAfwijkendTeOud(): void {
@@ -214,8 +214,8 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('jk1', 18.5, 'klas_5');
 
         $this->assertSame('afwijkend',       $r['criteria_leeftijd'],  '18.5 op jk1 → te oud (max marge 18.3)');
-        $this->assertSame('prima',           $r['criteria_school']);
-        $this->assertSame('leeftijdwijktaf', $r['criteria_indicatie']);
+        $this->assertSame('prima',           $r['criteria_school'],    'klas_5 op jk1 → prima ondanks leeftijdsafwijking (scenario D)');
+        $this->assertSame('leeftijdwijktaf', $r['criteria_indicatie'], 'Afwijkende leeftijd + prima school op jk1 → indicatie leeftijdwijktaf (scenario D)');
     }
 
     public function testBK_LeeftijdAfwijkendTeJong(): void {
@@ -223,8 +223,8 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('bk1', 10.5, 'groep_8');
 
         $this->assertSame('afwijkend',       $r['criteria_leeftijd'],  '10.5 op bk1 → te jong (min marge 11.3)');
-        $this->assertSame('prima',           $r['criteria_school']);
-        $this->assertSame('leeftijdwijktaf', $r['criteria_indicatie']);
+        $this->assertSame('prima',           $r['criteria_school'],    'groep_8 op bk1 → prima ondanks leeftijdsafwijking (scenario D)');
+        $this->assertSame('leeftijdwijktaf', $r['criteria_indicatie'], 'Afwijkende leeftijd + prima school op bk1 → indicatie leeftijdwijktaf (scenario D)');
     }
 
     // ########################################################################
@@ -235,19 +235,19 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         // 5.0 jaar (te jong) + groep_8 (te oud voor kk)
         $r = $this->criteria('kk1', 5.0, 'groep_8');
 
-        $this->assertSame('afwijkend',       $r['criteria_leeftijd']);
-        $this->assertSame('afwijkend',       $r['criteria_school']);
-        $this->assertSame('criteriawijktaf', $r['criteria_indicatie']);
-        $this->assertSame('oordeelnognodig', $r['criteria_oordeel']);
+        $this->assertSame('afwijkend',       $r['criteria_leeftijd'],  '5.0 op kk1 → te jong (scenario E)');
+        $this->assertSame('afwijkend',       $r['criteria_school'],    'groep_8 op kk1 → afwijkend (scenario E)');
+        $this->assertSame('criteriawijktaf', $r['criteria_indicatie'], 'Beide afwijkend op kk1 → indicatie criteriawijktaf (scenario E)');
+        $this->assertSame('oordeelnognodig', $r['criteria_oordeel'],   'Beide afwijkend vereist handmatig oordeel (scenario E)');
     }
 
     public function testJK_BeideAfwijkend(): void {
         // 13.0 jaar (te jong) + groep_8 (niet prima/marge voor jk)
         $r = $this->criteria('jk1', 13.0, 'groep_8');
 
-        $this->assertSame('afwijkend',       $r['criteria_leeftijd']);
-        $this->assertSame('afwijkend',       $r['criteria_school']);
-        $this->assertSame('criteriawijktaf', $r['criteria_indicatie']);
+        $this->assertSame('afwijkend',       $r['criteria_leeftijd'],  '13.0 op jk1 → te jong (scenario E)');
+        $this->assertSame('afwijkend',       $r['criteria_school'],    'groep_8 op jk1 → afwijkend (scenario E)');
+        $this->assertSame('criteriawijktaf', $r['criteria_indicatie'], 'Beide afwijkend op jk1 → indicatie criteriawijktaf (scenario E)');
     }
 
     // ########################################################################
@@ -260,7 +260,7 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
 
         $this->assertSame('groep_5',       $r['new_groepklas'],      'klas_5 op kk1 → gecorrigeerd naar groep_5');
         $this->assertSame('prima',         $r['criteria_school'],    'Na correctie is school prima');
-        $this->assertSame('criteriaprima', $r['criteria_indicatie']);
+        $this->assertSame('criteriaprima', $r['criteria_indicatie'], 'Na auto-correctie naar groep_5 → indicatie criteriaprima');
     }
 
     public function testTK_AutoCorrectieNaarKlas(): void {
@@ -276,8 +276,8 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('jk1', 17.0, 'groep_5');
 
         $this->assertSame('klas_5',        $r['new_groepklas'],   'groep_5 op jk1 → gecorrigeerd naar klas_5');
-        $this->assertSame('prima',         $r['criteria_school']);
-        $this->assertSame('criteriaprima', $r['criteria_indicatie']);
+        $this->assertSame('prima',         $r['criteria_school'],    'Na correctie is school prima');
+        $this->assertSame('criteriaprima', $r['criteria_indicatie'], 'Na auto-correctie naar klas_5 → indicatie criteriaprima');
     }
 
     // ########################################################################
@@ -296,7 +296,7 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = $this->criteria('kk1', 9.0, 'groep_8', 'buitencriteria');
 
         $this->assertSame('buitencriteria', $r['criteria_oordeel'],  'buitencriteria-oordeel mag niet worden gereset');
-        $this->assertSame('schoolwijktaf',  $r['criteria_indicatie']);
+        $this->assertSame('schoolwijktaf',  $r['criteria_indicatie'], 'Indicatie wordt wél correct berekend als schoolwijktaf, ondanks vast admin-oordeel');
     }
 
     // ########################################################################
@@ -314,9 +314,9 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = partstatus_criteria(0, $deel, 17.0);
 
         $this->assertSame('noggeenindicatie', $r['criteria_indicatie'], 'Neutraal: mag geen wijktaf-indicatie zijn');
-        $this->assertSame('oordeelnognodig',  $r['criteria_oordeel']);
+        $this->assertSame('oordeelnognodig',  $r['criteria_oordeel'],   'Ontbrekend kampkort → oordeel blijft nognodig (veilige neutrale uitkomst)');
         $this->assertTrue(!empty($r['criteria_incompleet']),            'criteria_incompleet-vlag moet gezet zijn → forceert status 8 in consolidate');
-        $this->assertNotContains($r['criteria_indicatie'], ['leeftijdwijktaf', 'schoolwijktaf', 'criteriawijktaf']);
+        $this->assertNotContains($r['criteria_indicatie'], ['leeftijdwijktaf', 'schoolwijktaf', 'criteriawijktaf'], 'Ontbrekend kampkort mag nooit een alarmerende wijktaf-indicatie opleveren');
     }
 
     public function testEventFallbackVervangLegeKampkort(): void {
@@ -331,8 +331,8 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $r = partstatus_criteria(0, $deel, 17.0);
 
         $this->assertSame('criteriaprima',    $r['criteria_indicatie'], 'Event-fallback werkt: 17j + klas_5 op jk1 → prima');
-        $this->assertSame('oordeelnietnodig', $r['criteria_oordeel']);
-        $this->assertTrue(empty($r['criteria_incompleet']));
+        $this->assertSame('oordeelnietnodig', $r['criteria_oordeel'],   'Event-fallback levert prima match op → geen handmatig oordeel nodig');
+        $this->assertTrue(empty($r['criteria_incompleet']),              'kenmerken_kampkort-fallback voorkomt dat criteria_incompleet gezet wordt');
     }
 
     // ########################################################################
@@ -419,8 +419,8 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         ];
         $wl = partstatus_evaluate_wachtlijst(0, $deel, $criteria);
 
-        $this->assertSame(33,               $wl['status_id']);
-        $this->assertSame('schoolwijktaf',  $criteria['criteria_indicatie']);
+        $this->assertSame(33,               $wl['status_id'],          'Status 7 + schoolwijktaf → status 33 (Wachtlijst + Criteria, fase 1)');
+        $this->assertSame('schoolwijktaf',  $criteria['criteria_indicatie'], 'Criteria-motor berekent schoolwijktaf correct voor deze wachtlijst-deelnemer');
     }
 
     /**
@@ -439,9 +439,9 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         ];
         $wl = partstatus_evaluate_wachtlijst(0, $deel, $criteria);
 
-        $this->assertSame(33,                $wl['status_id']);
-        $this->assertSame('criteriawijktaf', $criteria['criteria_indicatie']);
-        $this->assertSame('oordeelnognodig', $criteria['criteria_oordeel']);
+        $this->assertSame(33,                $wl['status_id'],          'Status 7 + criteriawijktaf → status 33 (Wachtlijst + Criteria, fase 1)');
+        $this->assertSame('criteriawijktaf', $criteria['criteria_indicatie'], 'Criteria-motor berekent criteriawijktaf correct (beide afwijkend)');
+        $this->assertSame('oordeelnognodig', $criteria['criteria_oordeel'],   'Beide afwijkend vereist handmatig oordeel');
     }
 
     /**
@@ -484,7 +484,7 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         $wl = partstatus_evaluate_wachtlijst(0, $deel, $criteria);
 
         // Status wordt 33 (leeftijdwijktaf + nognodig), maar wl_erop is wél gevuld door Regel C
-        $this->assertSame(33,                     $wl['status_id']);
+        $this->assertSame(33,                     $wl['status_id'],   'Ontbrekende wl_erop-datum verandert niets aan de status-berekening (blijft 33)');
         $this->assertSame('2026-03-01 10:00:00',  $wl['wl_erop'],
             'wl_erop moet automatisch gevuld worden met register_date (Regel C geldt voor 7 én 33).');
     }
@@ -516,7 +516,7 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
             'Status 33 + wl_eraf + oordeel nog open → status 8 (Afwachting oordeel, betaalmail wacht).');
 
         // Criteria-velden bevestigen de afwijking:
-        $this->assertSame('leeftijdwijktaf', $criteria['criteria_indicatie']);
+        $this->assertSame('leeftijdwijktaf', $criteria['criteria_indicatie'], 'Criteria-motor bevestigt leeftijdwijktaf in fase 2a');
         $this->assertSame('oordeelnognodig', $criteria['criteria_oordeel'],
             'CiviRule 279–288 mag nog niet vieren: die vereist status 9, niet 8.');
     }
@@ -537,9 +537,9 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
         ];
         $wl = partstatus_evaluate_wachtlijst(0, $deel, $criteria);
 
-        $this->assertSame(8,               $wl['status_id']);
-        $this->assertSame('schoolwijktaf', $criteria['criteria_indicatie']);
-        $this->assertSame('oordeelnognodig', $criteria['criteria_oordeel']);
+        $this->assertSame(8,               $wl['status_id'],           'Status 33 + wl_eraf + schoolwijktaf + oordeel nog open → status 8 (fase 2a, variant jk1)');
+        $this->assertSame('schoolwijktaf', $criteria['criteria_indicatie'], 'Criteria-motor bevestigt schoolwijktaf voor deze jk1-deelnemer');
+        $this->assertSame('oordeelnognodig', $criteria['criteria_oordeel'], 'Oordeel blijft nognodig zolang admin niet heeft beoordeeld');
     }
 
     // ########################################################################
@@ -569,7 +569,7 @@ class CriteriaStatusTest extends \PHPUnit\Framework\TestCase implements EndToEnd
 
         $this->assertSame('schoolwijktaf',   $criteria['criteria_indicatie'],
             'Criteria zijn afwijkend — klas_3 is te hoog voor bk1 (prima = groep_8/klas_1).');
-        $this->assertSame('oordeelnognodig', $criteria['criteria_oordeel']);
+        $this->assertSame('oordeelnognodig', $criteria['criteria_oordeel'], 'Schoolafwijking vereist handmatig oordeel vóórdat paylink kan doorstromen (fase 2b)');
 
         $deel = [
             'part_rol'                => 'deelnemer',

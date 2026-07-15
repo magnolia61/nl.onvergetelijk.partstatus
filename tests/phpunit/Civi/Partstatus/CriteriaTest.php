@@ -59,7 +59,7 @@ class CriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
     $part   = $this->maakDeelnemer('kk1', 'groep_5');
     $result = partstatus_criteria(0, $part, 9.0);
 
-    $this->assertNotNull($result);
+    $this->assertNotNull($result, 'Scenario A (prima leeftijd + prima school) moet een resultaat opleveren.');
     $this->assertEquals('prima',            $result['criteria_leeftijd'],  'Leeftijd 9.0 op kk1 moet prima zijn.');
     $this->assertEquals('prima',            $result['criteria_school'],    'groep_5 op kk1 moet prima zijn.');
     $this->assertEquals('criteriaprima',    $result['criteria_indicatie'], 'Indicatie moet criteriaprima zijn.');
@@ -90,8 +90,8 @@ class CriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
     $result = partstatus_criteria(0, $part, 12.2);
 
     $this->assertEquals('marge',            $result['criteria_leeftijd'],  'Leeftijd 12.2 op kk1 moet marge zijn (bovenkant 12.0-12.3).');
-    $this->assertEquals('binnenmarges',     $result['criteria_indicatie']);
-    $this->assertEquals('oordeelnietnodig', $result['criteria_oordeel']);
+    $this->assertEquals('binnenmarges',     $result['criteria_indicatie'], 'Indicatie moet binnenmarges zijn bij marge-leeftijd aan de bovenkant.');
+    $this->assertEquals('oordeelnietnodig', $result['criteria_oordeel'],   'Marge aan de bovenkant wordt automatisch goedgekeurd.');
   }
 
   /**
@@ -102,8 +102,8 @@ class CriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
     $result = partstatus_criteria(0, $part, 15.0);
 
     $this->assertEquals('marge',            $result['criteria_school'],    'klas_4 op tk1 moet school-marge zijn.');
-    $this->assertEquals('binnenmarges',     $result['criteria_indicatie']);
-    $this->assertEquals('oordeelnietnodig', $result['criteria_oordeel']);
+    $this->assertEquals('binnenmarges',     $result['criteria_indicatie'], 'Indicatie moet binnenmarges zijn bij school-marge (B2).');
+    $this->assertEquals('oordeelnietnodig', $result['criteria_oordeel'],   'School-marge wordt automatisch goedgekeurd.');
   }
 
   // ########################################################################
@@ -117,7 +117,7 @@ class CriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
     $part   = $this->maakDeelnemer('kk1', 'groep_8');
     $result = partstatus_criteria(0, $part, 9.0);
 
-    $this->assertEquals('prima',          $result['criteria_leeftijd']);
+    $this->assertEquals('prima',          $result['criteria_leeftijd'],  'Leeftijd 9.0 op kk1 moet prima blijven in scenario C.');
     $this->assertEquals('afwijkend',      $result['criteria_school'],    'groep_8 op kk1 moet afwijkend zijn.');
     $this->assertEquals('schoolwijktaf',  $result['criteria_indicatie'], 'Indicatie moet schoolwijktaf zijn.');
     $this->assertEquals('oordeelnognodig', $result['criteria_oordeel'],  'Handmatig oordeel vereist bij schoolafwijking.');
@@ -135,7 +135,7 @@ class CriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
     $result = partstatus_criteria(0, $part, 13.0);
 
     $this->assertEquals('afwijkend',       $result['criteria_leeftijd'],  'Leeftijd 13.0 op kk1 moet afwijkend zijn.');
-    $this->assertEquals('prima',           $result['criteria_school']);
+    $this->assertEquals('prima',           $result['criteria_school'],    'groep_5 op kk1 moet prima blijven in scenario D.');
     $this->assertEquals('leeftijdwijktaf', $result['criteria_indicatie'], 'Indicatie moet leeftijdwijktaf zijn.');
   }
 
@@ -150,8 +150,8 @@ class CriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
     $part   = $this->maakDeelnemer('kk1', 'groep_8');
     $result = partstatus_criteria(0, $part, 5.0);
 
-    $this->assertEquals('afwijkend',       $result['criteria_leeftijd']);
-    $this->assertEquals('afwijkend',       $result['criteria_school']);
+    $this->assertEquals('afwijkend',       $result['criteria_leeftijd'],  'Leeftijd 5.0 op kk1 moet afwijkend zijn in scenario E.');
+    $this->assertEquals('afwijkend',       $result['criteria_school'],    'groep_8 op kk1 moet afwijkend zijn in scenario E.');
     $this->assertEquals('criteriawijktaf', $result['criteria_indicatie'], 'Beide afwijkend moet criteriawijktaf opleveren.');
   }
 
@@ -179,6 +179,28 @@ class CriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
   }
 
   /**
+   * Ontbrekende deelnemer-data (geen $array_part, en part_id 0 dus ook geen lazy-load
+   * via base_pid2part()) → NULL. Dit dekt het foutpad in partstatus.criteria.php
+   * regel ~40 ("if (empty($array_part)) return NULL;"), dat voorheen niet expliciet
+   * getest werd.
+   */
+  public function testOntbrekendeDeelnemerDataGeeftNull() {
+    $result = partstatus_criteria(0, NULL, 9.0);
+    $this->assertNull($result, 'Zonder deelnemer-data (geen $array_part, geen ophaalbare $part_id) moet de check NULL opleveren, niet crashen.');
+  }
+
+  /**
+   * Lege array als deelnemer-data (geen velden ingevuld) → NULL.
+   * Ander pad dan NULL zelf: empty([]) is ook TRUE, maar het is de moeite waard dit
+   * expliciet vast te leggen zodat een toekomstige refactor van de empty()-check dit
+   * niet stilzwijgend kan laten doorschieten naar de rol/event-type-filters hieronder.
+   */
+  public function testLegeDeelnemerArrayGeeftNull() {
+    $result = partstatus_criteria(0, [], 9.0);
+    $this->assertNull($result, 'Een lege deelnemer-array moet net als NULL worden behandeld en NULL opleveren.');
+  }
+
+  /**
    * Handmatig admin-oordeel 'oordeelprima' blijft behouden, ook bij leeftijdsafwijking.
    */
   public function testHandmatigOordeelBlijftBehouden() {
@@ -195,7 +217,7 @@ class CriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
     $part   = $this->maakDeelnemer('kk1', 'klas_5');
     $result = partstatus_criteria(0, $part, 9.0);
 
-    $this->assertNotNull($result);
+    $this->assertNotNull($result, 'Groep/klas-correctie mag geen NULL-resultaat opleveren.');
     $this->assertEquals('groep_5', $result['new_groepklas'], 'klas_5 op kk1 moet automatisch gecorrigeerd worden naar groep_5.');
     $this->assertEquals('prima',   $result['criteria_school'], 'Na correctie naar groep_5 moet school prima zijn.');
   }

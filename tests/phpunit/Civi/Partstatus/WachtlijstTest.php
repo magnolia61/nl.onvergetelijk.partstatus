@@ -192,7 +192,7 @@ class WachtlijstTest extends \PHPUnit\Framework\TestCase implements EndToEndInte
     $result = partstatus_evaluate_wachtlijst(0, $part);
 
     $this->assertEquals(1,          $result['status_id'],    'Status 9 met paylink moet promoveren naar 1 (Bevestigd).');
-    $this->assertEquals('Bevestigd', $result['status_label']);
+    $this->assertEquals('Bevestigd', $result['status_label'], 'Status-label moet overeenkomen met status 1 (Bevestigd) na promotie via Regel D.');
   }
 
   /**
@@ -206,7 +206,7 @@ class WachtlijstTest extends \PHPUnit\Framework\TestCase implements EndToEndInte
     $result = partstatus_evaluate_wachtlijst(0, $part);
 
     $this->assertEquals(9, $result['status_id'], 'Status 9 zonder paylink moet op 9 (Afwachting Betaling) blijven.');
-    $this->assertStringContainsString('Betaling', $result['status_label']);
+    $this->assertStringContainsString('Betaling', $result['status_label'], 'Status-label bij status 9 moet naar Afwachting Betaling verwijzen.');
   }
 
   /**
@@ -236,7 +236,7 @@ class WachtlijstTest extends \PHPUnit\Framework\TestCase implements EndToEndInte
     $part   = $this->maakPart(2); // Aangemeld (geen regels van toepassing)
     $result = partstatus_evaluate_wachtlijst(0, $part);
 
-    $this->assertIsArray($result);
+    $this->assertIsArray($result, 'partstatus_evaluate_wachtlijst() moet een array retourneren.');
     foreach (['status_id', 'status_label', 'wl_erop', 'wl_eraf'] as $key) {
       $this->assertArrayHasKey($key, $result, "Sleutel '$key' ontbreekt in retourarray.");
     }

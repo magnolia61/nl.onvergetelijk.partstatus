@@ -43,7 +43,7 @@ class LeeftijdTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
    */
   public function testExacteLeeftijdTwaalf() {
     $result = partstatus_leeftijd_diff('test', '2012-07-01', '2024-07-01');
-    $this->assertNotNull($result);
+    $this->assertNotNull($result, 'Resultaat mag niet NULL zijn bij exacte 12 jaar leeftijd.');
     $this->assertEquals(12.0, $result['leeftijd_decimalen'], 'Exacte 12 jaar moet 12.0 zijn.');
     $this->assertEquals(12,   $result['leeftijd_rondjaren'], 'Rondjaren moet 12 zijn.');
     $this->assertEquals(0,    $result['leeftijd_rondmaand'], 'Rondmaand moet 0 zijn bij exacte verjaardag.');
@@ -54,10 +54,10 @@ class LeeftijdTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
    */
   public function testHalfjaarLeeftijd() {
     $result = partstatus_leeftijd_diff('test', '2014-01-01', '2023-07-01');
-    $this->assertNotNull($result);
+    $this->assertNotNull($result, 'Resultaat mag niet NULL zijn bij halfjaar-leeftijdsscenario.');
     $this->assertEquals(9.5, $result['leeftijd_decimalen'], '9 jaar en 6 maanden moet 9.5 zijn.');
-    $this->assertEquals(9,   $result['leeftijd_rondjaren']);
-    $this->assertEquals(6,   $result['leeftijd_rondmaand']);
+    $this->assertEquals(9,   $result['leeftijd_rondjaren'], 'Rondjaren moet 9 zijn bij 9 jaar en 6 maanden.');
+    $this->assertEquals(6,   $result['leeftijd_rondmaand'], 'Rondmaand moet 6 zijn bij een half jaar sinds de verjaardag.');
   }
 
   /**
@@ -66,9 +66,9 @@ class LeeftijdTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
    */
   public function testElfMaanden() {
     $result = partstatus_leeftijd_diff('test', '2013-08-01', '2024-07-01');
-    $this->assertNotNull($result);
+    $this->assertNotNull($result, 'Resultaat mag niet NULL zijn bij 11-maanden-scenario.');
     $this->assertEquals(10.9, $result['leeftijd_decimalen'], '10 jaar en 11 maanden moet 10.9 zijn.');
-    $this->assertEquals(10,   $result['leeftijd_rondjaren']);
+    $this->assertEquals(10,   $result['leeftijd_rondjaren'], 'Rondjaren moet 10 zijn bij 10 jaar en 11 maanden.');
   }
 
   // ########################################################################
@@ -101,11 +101,11 @@ class LeeftijdTest extends \PHPUnit\Framework\TestCase implements EndToEndInterf
 
   public function testRetourArrayStructuur() {
     $result = partstatus_leeftijd_diff('structuur', '2008-06-01', '2026-06-01');
-    $this->assertIsArray($result);
+    $this->assertIsArray($result, 'partstatus_leeftijd_diff() moet een array retourneren.');
     foreach (['leeftijd_birthdate', 'leeftijd_refdate', 'leeftijd_decimalen', 'leeftijd_rondjaren', 'leeftijd_rondmaand'] as $key) {
       $this->assertArrayHasKey($key, $result, "Sleutel '$key' ontbreekt in retourarray.");
     }
-    $this->assertEquals('2008-06-01', $result['leeftijd_birthdate']);
-    $this->assertEquals('2026-06-01', $result['leeftijd_refdate']);
+    $this->assertEquals('2008-06-01', $result['leeftijd_birthdate'], 'leeftijd_birthdate moet de opgegeven geboortedatum bevatten.');
+    $this->assertEquals('2026-06-01', $result['leeftijd_refdate'], 'leeftijd_refdate moet de opgegeven peildatum bevatten.');
   }
 }
