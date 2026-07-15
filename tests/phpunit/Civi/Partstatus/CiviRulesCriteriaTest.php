@@ -10,29 +10,39 @@ use Civi\Test\TransactionalInterface;
  *
  * @group e2e
  *
- * Controleert de database-structuur van CiviRules 279–288
- * (NOTIFICATIE buiten CRITERIA deel KK1/KK2/BK1/BK2/TK1/TK2/JK1/JK2/TOP):
+ * =======================================================================================
+ * ACHTERGROND — CONSOLIDATIE 2026-07-11 (per-kamp → uniform)
+ * =======================================================================================
+ * Oorspronkelijk was er per kamp één "NOTIFICATIE buiten CRITERIA deel [kamp]"-rule:
  *
- *   A) Elke campkort-rule is actief.
+ *     279=KK1  281=KK2  282=BK1  283=BK2  284=TK1  285=TK2  286=JK1  287=JK2  288=TOP
  *
- *   B) Indicatie-conditie: custom_1428 (PART criteria_indicatie) is één van
- *      criteriawijktaf / schoolwijktaf / leeftijdwijktaf.
+ * Deze zijn op 2026-07-11 13:07:12 (user 27, Richard) BEWUST gedeactiveerd als onderdeel
+ * van de bredere CiviRules→"uniform"-consolidatie (~117 rules → ~15). Op exact hetzelfde
+ * moment (13:06:43) is één vervangende rule aangemaakt:
  *
- *   C) Oordeel-conditie: custom_1429 (PART criteria_oordeel) is één van
- *      oordeelnognodig / oordeelbuitencriteria.
+ *     602  buiten_criteria_deel_uniform   (trigger 58 = new_participant)
  *
- *   D) Status-conditie: status_id = 9 (Afwachting betaling), operator "1" (= gelijk aan).
- *      LET OP: rule 284 (TK1) heeft operator "0" (= NIET gelijk aan) — dat is een bug!
- *      Deze test vangt die bug expliciet op.
+ * Rule 602 is de functionele superset van 279–287:
+ *   - Actie 51  participant_update_status → status 8 (Afwachting oordeel)      [identiek]
+ *   - Actie 137 emailapi_send → template 500 (gezin)                          [identiek aan 279]
+ *   - Actie 196 civirulescc_relatedcontact_renderoriginal → template 502      [notif_kamp,
+ *               nu via het render-original mechanisme i.p.v. per-kamp alt-receiver]
+ *   - Eén event_type_id-conditie die ALLE reguliere kampen dekt: 11,12,13,14,21,22,23,24
+ *   - Extra guard t.o.v. de oude rules: Event.start_date >= today
+ *   - Status-operator "1" (gelijk aan) → dit REPAREERT de oude bug in rule 284 (TK1),
+ *     die operator "0" (ongelijk) gebruikte.
  *
- *   E) DITJAAR-conditie: custom_2082 (Contact ditjaar_criteria_indicatie) is één van
- *      dezelfde wijkt-af-waarden (dubbele check: PART én Contact moeten matchen).
+ * TOP (rule 288, event_type 33) valt BUITEN de consolidatie: 602 dekt event_type 33 niet,
+ * daarom is rule 288 met opzet actief gebleven en handelt TOP nog steeds zelfstandig af.
  *
- *   F) is_test-conditie = 0 (geen testregistraties).
+ * Deze test valideert dus de HUIDIGE realiteit:
+ *   1) De 8 oude per-kamp-rules (279–287) staan bewust op is_active=0.
+ *   2) De TOP-rule (288) is nog actief (aparte afhandeling).
+ *   3) De uniforme rule (602) is actief en heeft de juiste condities (voorheen B–G per kamp).
  *
- *   G) Event type klopt per kamp:
- *      279=KK1→11, 281=KK2→21, 282=BK1→12, 283=BK2→22, 284=TK1→13,
- *      285=TK2→23, 286=JK1→14, 287=JK2→24, 288=TOP→33
+ * Zet de oude rules NIET opnieuw aan: samen met 602 zouden ze dubbele status-updates en
+ * dubbele mails veroorzaken.
  *
  * Veldnummers:
  *   custom_1428 = PART_DEEL_INTERN.criteria_indicatie
@@ -41,17 +51,17 @@ use Civi\Test\TransactionalInterface;
  */
 class CiviRulesCriteriaTest extends \PHPUnit\Framework\TestCase implements EndToEndInterface, TransactionalInterface {
 
-    private const CRITERIA_RULES = [
-        279 => 11,  // KK1
-        281 => 21,  // KK2
-        282 => 12,  // BK1
-        283 => 22,  // BK2
-        284 => 13,  // TK1  ← operator-bug: status_id "0" i.p.v. "1"
-        285 => 23,  // TK2
-        286 => 14,  // JK1
-        287 => 24,  // JK2
-        288 => 33,  // TOP
-    ];
+    /** De uniforme rule die op 2026-07-11 de per-kamp-rules verving. */
+    private const UNIFORM_RULE = 602;
+
+    /** De per-kamp-rules die bewust zijn gedeactiveerd (vervangen door 602). */
+    private const LEGACY_RULES_UIT = [279, 281, 282, 283, 284, 285, 286, 287];
+
+    /** TOP valt buiten de consolidatie en blijft zelfstandig actief. */
+    private const TOP_RULE = 288;
+
+    /** Reguliere kamp-event_types die de uniforme rule moet dekken. */
+    private const KAMP_EVENT_TYPES = [11, 12, 13, 14, 21, 22, 23, 24];
 
     private const INDICATIE_AFWIJKEND = ['criteriawijktaf', 'schoolwijktaf', 'leeftijdwijktaf'];
     private const OORDEEL_HANDMATIG   = ['oordeelnognodig', 'oordeelbuitencriteria'];
@@ -102,14 +112,38 @@ class CiviRulesCriteriaTest extends \PHPUnit\Framework\TestCase implements EndTo
     }
 
     // ########################################################################
-    // ### A: Alle buiten-criteria-rules actief
+    // ### A: Consolidatie-staat — oude rules uit, TOP + uniform actief
     // ########################################################################
 
-    /** @dataProvider criteriaRuleProvider */
-    public function testBuitenCriteriaRuleActief(int $ruleId, int $eventTypeId): void {
-        $this->assertTrue(
+    /**
+     * De 8 per-kamp-rules moeten NA de consolidatie van 2026-07-11 uit staan.
+     * Ze zijn vervangen door rule 602. Weer aanzetten = dubbele mails/statusupdates.
+     *
+     * @dataProvider legacyRuleProvider
+     */
+    public function testOudeCriteriaRuleGedeactiveerd(int $ruleId): void {
+        $this->assertFalse(
             $this->ruleIsActive($ruleId),
-            "CiviRule $ruleId (event_type $eventTypeId) — NOTIFICATIE buiten CRITERIA — moet actief zijn."
+            "CiviRule $ruleId (oude per-kamp 'buiten CRITERIA') moet INACTIEF zijn: bewust " .
+            "gedeactiveerd op 2026-07-11 en vervangen door de uniforme rule " . self::UNIFORM_RULE . "."
+        );
+    }
+
+    /** TOP valt buiten de consolidatie en moet nog steeds actief zijn. */
+    public function testTopCriteriaRuleNogActief(): void {
+        $this->assertTrue(
+            $this->ruleIsActive(self::TOP_RULE),
+            "CiviRule " . self::TOP_RULE . " (TOP, event_type 33) valt buiten de uniforme rule " .
+            self::UNIFORM_RULE . " en moet zelfstandig actief blijven."
+        );
+    }
+
+    /** De uniforme vervanger moet actief zijn. */
+    public function testUniformeRuleActief(): void {
+        $this->assertTrue(
+            $this->ruleIsActive(self::UNIFORM_RULE),
+            "CiviRule " . self::UNIFORM_RULE . " (buiten_criteria_deel_uniform) moet actief zijn — " .
+            "dit is de vervanger van de oude per-kamp-rules."
         );
     }
 
@@ -117,19 +151,18 @@ class CiviRulesCriteriaTest extends \PHPUnit\Framework\TestCase implements EndTo
     // ### B: Indicatie-conditie (PART custom_1428)
     // ########################################################################
 
-    /** @dataProvider criteriaRuleProvider */
-    public function testBuitenCriteriaHeeftIndicatieConditie(int $ruleId, int $eventTypeId): void {
-        $conditions = $this->ruleConditions($ruleId);
+    public function testUniformeRuleHeeftIndicatieConditie(): void {
+        $conditions = $this->ruleConditions(self::UNIFORM_RULE);
         $cond = $this->findCondition($conditions, 'Participant', self::CUSTOM_INDICATIE_PART);
 
         $this->assertNotNull($cond,
-            "Rule $ruleId moet een Participant.custom_1428 (criteria_indicatie) conditie hebben."
+            "Rule " . self::UNIFORM_RULE . " moet een Participant.custom_1428 (criteria_indicatie) conditie hebben."
         );
 
         $smileys = (array) ($cond['multi_value'] ?? []);
         foreach (self::INDICATIE_AFWIJKEND as $val) {
             $this->assertContains($val, $smileys,
-                "Rule $ruleId: indicatie '$val' moet in de conditie staan."
+                "Rule " . self::UNIFORM_RULE . ": indicatie '$val' moet in de conditie staan."
             );
         }
     }
@@ -138,19 +171,18 @@ class CiviRulesCriteriaTest extends \PHPUnit\Framework\TestCase implements EndTo
     // ### C: Oordeel-conditie (PART custom_1429)
     // ########################################################################
 
-    /** @dataProvider criteriaRuleProvider */
-    public function testBuitenCriteriaHeeftOordeelConditie(int $ruleId, int $eventTypeId): void {
-        $conditions = $this->ruleConditions($ruleId);
+    public function testUniformeRuleHeeftOordeelConditie(): void {
+        $conditions = $this->ruleConditions(self::UNIFORM_RULE);
         $cond = $this->findCondition($conditions, 'Participant', self::CUSTOM_OORDEEL_PART);
 
         $this->assertNotNull($cond,
-            "Rule $ruleId moet een Participant.custom_1429 (criteria_oordeel) conditie hebben."
+            "Rule " . self::UNIFORM_RULE . " moet een Participant.custom_1429 (criteria_oordeel) conditie hebben."
         );
 
         $values = (array) ($cond['multi_value'] ?? []);
         foreach (self::OORDEEL_HANDMATIG as $val) {
             $this->assertContains($val, $values,
-                "Rule $ruleId: oordeel '$val' moet in de conditie staan."
+                "Rule " . self::UNIFORM_RULE . ": oordeel '$val' moet in de conditie staan."
             );
         }
     }
@@ -159,32 +191,30 @@ class CiviRulesCriteriaTest extends \PHPUnit\Framework\TestCase implements EndTo
     // ### D: Status-conditie = 9, operator "1" (gelijk aan)
     // ########################################################################
 
-    /** @dataProvider criteriaRuleProvider */
-    public function testBuitenCriteriaStatusIs9(int $ruleId, int $eventTypeId): void {
-        $conditions = $this->ruleConditions($ruleId);
+    public function testUniformeRuleStatusIs9(): void {
+        $conditions = $this->ruleConditions(self::UNIFORM_RULE);
         $cond       = $this->findStatusCondition($conditions);
 
-        $this->assertNotNull($cond, "Rule $ruleId moet een status_id-conditie hebben.");
+        $this->assertNotNull($cond, "Rule " . self::UNIFORM_RULE . " moet een status_id-conditie hebben.");
         $this->assertContains('9', (array) ($cond['status_id'] ?? []),
-            "Rule $ruleId: status_id moet 9 (Afwachting betaling) bevatten."
+            "Rule " . self::UNIFORM_RULE . ": status_id moet 9 (Afwachting betaling) bevatten."
         );
     }
 
     /**
      * Status-conditie moet operator "1" (= gelijk aan) gebruiken, NIET "0" (= ongelijk).
      *
-     * Bekende bug: rule 284 (TK1) heeft operator "0" i.p.v. "1". Die test FAALT en signaleert de bug.
-     *
-     * @dataProvider criteriaRuleProvider
+     * Historie: de oude TK1-rule 284 had per abuis operator "0". De consolidatie naar de
+     * uniforme rule 602 heeft dit gerepareerd — 602 hoort operator "1" te gebruiken.
      */
-    public function testBuitenCriteriaStatusOperatorGelijkAan(int $ruleId, int $eventTypeId): void {
-        $conditions = $this->ruleConditions($ruleId);
+    public function testUniformeRuleStatusOperatorGelijkAan(): void {
+        $conditions = $this->ruleConditions(self::UNIFORM_RULE);
         $cond       = $this->findStatusCondition($conditions);
 
-        $this->assertNotNull($cond, "Rule $ruleId moet een status_id-conditie hebben.");
+        $this->assertNotNull($cond, "Rule " . self::UNIFORM_RULE . " moet een status_id-conditie hebben.");
         $this->assertSame('1', (string) ($cond['operator'] ?? ''),
-            "Rule $ruleId (event_type $eventTypeId): status_id operator moet '1' (gelijk aan) zijn, niet '0' (ongelijk)." .
-            ($ruleId === 284 ? " [BEKENDE BUG in TK1-rule 284 — operator staat op 0 (ongelijk)]" : "")
+            "Rule " . self::UNIFORM_RULE . ": status_id operator moet '1' (gelijk aan) zijn, niet '0' (ongelijk). " .
+            "De uniforme rule repareert de oude operator-bug van rule 284."
         );
     }
 
@@ -192,19 +222,18 @@ class CiviRulesCriteriaTest extends \PHPUnit\Framework\TestCase implements EndTo
     // ### E: DITJAAR-indicatie-conditie (Contact custom_2082)
     // ########################################################################
 
-    /** @dataProvider criteriaRuleProvider */
-    public function testBuitenCriteriaHeeftDitjaarIndicatieConditie(int $ruleId, int $eventTypeId): void {
-        $conditions = $this->ruleConditions($ruleId);
+    public function testUniformeRuleHeeftDitjaarIndicatieConditie(): void {
+        $conditions = $this->ruleConditions(self::UNIFORM_RULE);
         $cond = $this->findCondition($conditions, 'Contact', self::CUSTOM_INDICATIE_DITJAAR);
 
         $this->assertNotNull($cond,
-            "Rule $ruleId moet ook een Contact.custom_2082 (ditjaar_criteria_indicatie) conditie hebben."
+            "Rule " . self::UNIFORM_RULE . " moet ook een Contact.custom_2082 (ditjaar_criteria_indicatie) conditie hebben."
         );
 
         $values = (array) ($cond['multi_value'] ?? []);
         foreach (self::INDICATIE_AFWIJKEND as $val) {
             $this->assertContains($val, $values,
-                "Rule $ruleId: DITJAAR-indicatie '$val' moet in de conditie staan."
+                "Rule " . self::UNIFORM_RULE . ": DITJAAR-indicatie '$val' moet in de conditie staan."
             );
         }
     }
@@ -213,27 +242,31 @@ class CiviRulesCriteriaTest extends \PHPUnit\Framework\TestCase implements EndTo
     // ### F: is_test = 0
     // ########################################################################
 
-    /** @dataProvider criteriaRuleProvider */
-    public function testBuitenCriteriaIsTestNul(int $ruleId, int $eventTypeId): void {
-        $conditions = $this->ruleConditions($ruleId);
+    public function testUniformeRuleIsTestNul(): void {
+        $conditions = $this->ruleConditions(self::UNIFORM_RULE);
         $cond = $this->findCondition($conditions, 'Participant', 'is_test');
 
-        $this->assertNotNull($cond, "Rule $ruleId moet een is_test-conditie hebben.");
+        $this->assertNotNull($cond, "Rule " . self::UNIFORM_RULE . " moet een is_test-conditie hebben.");
         $this->assertSame('0', (string) ($cond['value'] ?? ''),
-            "Rule $ruleId: is_test moet 0 zijn (geen testregistraties)."
+            "Rule " . self::UNIFORM_RULE . ": is_test moet 0 zijn (geen testregistraties)."
         );
     }
 
     // ########################################################################
-    // ### G: Event type per kamp
+    // ### G: Event type — één rule dekt ALLE reguliere kampen
     // ########################################################################
 
-    /** @dataProvider criteriaRuleProvider */
-    public function testBuitenCriteriaEventTypeKlopt(int $ruleId, int $eventTypeId): void {
-        $conditions = $this->ruleConditions($ruleId);
+    /**
+     * De kracht van de consolidatie: waar vroeger 8 rules elk één event_type checkten,
+     * dekt de uniforme rule alle reguliere kampen in één event_type_id-conditie.
+     *
+     * @dataProvider kampEventTypeProvider
+     */
+    public function testUniformeRuleDektKampEventType(int $eventTypeId): void {
+        $conditions = $this->ruleConditions(self::UNIFORM_RULE);
         $cond = $this->findCondition($conditions, 'Event', 'event_type_id');
 
-        $this->assertNotNull($cond, "Rule $ruleId moet een Event.event_type_id-conditie hebben.");
+        $this->assertNotNull($cond, "Rule " . self::UNIFORM_RULE . " moet een Event.event_type_id-conditie hebben.");
 
         $values = array_merge(
             [$cond['value'] ?? ''],
@@ -242,39 +275,27 @@ class CiviRulesCriteriaTest extends \PHPUnit\Framework\TestCase implements EndTo
         $this->assertContains(
             (string) $eventTypeId,
             $values,
-            "Rule $ruleId: event_type_id $eventTypeId moet in de conditie staan."
+            "Rule " . self::UNIFORM_RULE . ": event_type_id $eventTypeId moet in de conditie staan " .
+            "(uniforme rule dekt alle reguliere kampen)."
         );
     }
 
     // ########################################################################
-    // ### Symmetrie: alle regels bevatten dezelfde indicatie-waarden
+    // ### DataProviders
     // ########################################################################
 
-    public function testAlleRulesHebbenDezelfdeIndicatieWaarden(): void {
-        $vorige = NULL;
-        foreach (array_keys(self::CRITERIA_RULES) as $ruleId) {
-            $conditions = $this->ruleConditions($ruleId);
-            $cond       = $this->findCondition($conditions, 'Participant', self::CUSTOM_INDICATIE_PART);
-            $values     = (array) ($cond['multi_value'] ?? []);
-            sort($values);
-
-            if ($vorige !== NULL) {
-                $this->assertSame($vorige, $values,
-                    "Rule $ruleId heeft andere indicatie-waarden dan de vorige rule — alle buiten-criteria-rules moeten gelijk zijn."
-                );
-            }
-            $vorige = $values;
+    public function legacyRuleProvider(): array {
+        $cases = [];
+        foreach (self::LEGACY_RULES_UIT as $ruleId) {
+            $cases["rule_$ruleId"] = [$ruleId];
         }
+        return $cases;
     }
 
-    // ########################################################################
-    // ### DataProvider
-    // ########################################################################
-
-    public function criteriaRuleProvider(): array {
+    public function kampEventTypeProvider(): array {
         $cases = [];
-        foreach (self::CRITERIA_RULES as $ruleId => $eventTypeId) {
-            $cases["rule_$ruleId"] = [$ruleId, $eventTypeId];
+        foreach (self::KAMP_EVENT_TYPES as $eventTypeId) {
+            $cases["event_type_$eventTypeId"] = [$eventTypeId];
         }
         return $cases;
     }
